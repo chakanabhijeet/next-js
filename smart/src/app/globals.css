@@ -81,6 +81,7 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  --font-inter: "Inter", sans-serif;
 }
 
 .dark {
@@ -127,4 +128,21 @@
   html {
     @apply font-sans;
   }
+}
+html,
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-inter), sans-serif;
+}
+
+* {
+  font-family: inherit;
+}
+
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
 }
