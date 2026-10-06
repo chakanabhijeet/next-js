@@ -8,5 +8,5 @@ const apiClient = axios.create({
   },
   timeout: 30000,
 });
-
+console.log(apiClient);
 export default apiClient;
