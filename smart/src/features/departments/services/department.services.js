@@ -1,5 +1,6 @@
+
 import axios from "axios";
-import { base_url } from "@/config/api-config";
+import { BASE_URL } from "@/config/constants";
 import { API_ENDPOINTS } from "@/config/api-endpoints";
 
 export const departmentService = {
@@ -11,9 +12,9 @@ export const departmentService = {
     }
 
     const response = await axios.post(
-      `${base_url}${API_ENDPOINTS.DEPARTMENTS.CREATE}`,
+      `${BASE_URL}${API_ENDPOINTS.DEPARTMENTS.CREATE}`,
       {
-        department,
+        department: department.trim(),
       },
       {
         headers: {

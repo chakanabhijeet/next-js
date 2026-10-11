@@ -24,4 +24,7 @@ export const API_ENDPOINTS = {
   PERMISSIONS: {
     CREATE: "/permission/createpermission",
   },
+  PRODUCTION: {
+  ASSEMBLY_SHIFT: "/proddata/assemblyshift",
+},
 };
