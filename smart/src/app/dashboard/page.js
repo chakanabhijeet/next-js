@@ -1,5 +1,3 @@
-
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -12,12 +10,11 @@ import {
   Wifi,
   WifiOff,
   AlertCircle,
-  ChevronDown,
 } from "lucide-react";
 
 // A machine is "running" if its last production event is newer than this.
 // Minimum 5 minutes, or 3x the cycle time if that is longer.
-const MIN_TIMEOUT_MS = 5 * 60 * 1000;
+const MIN_TIMEOUT_MS = 15 * 60 * 1000;
 // Allow small clock differences between server and browser.
 const CLOCK_SKEW_TOLERANCE_MS = 60 * 1000;
 // How often the screen re-checks status even if no new data arrives.
@@ -207,49 +204,6 @@ function MetricRow({ label, value, stopped, highlight = false }) {
   );
 }
 
-function ExtraDetails({ production, stopped }) {
-  const items = [
-    ["Device Name", production?.deviceId],
-    ["Machine ID", production?.machineId],
-    ["Tenant ID", production?.tenantId],
-    ["Customer ID", production?.customerId],
-    ["Event ID", production?.eventId],
-    ["Production Time (UTC)", production?.productionTime],
-    ["Created At (UTC)", production?.createdAt],
-  ];
-
-  return (
-    <details className="group mt-3">
-      <summary
-        className={`flex cursor-pointer list-none items-center justify-between rounded-lg border px-3 py-2.5 text-sm font-medium ${
-          stopped
-            ? "border-rose-200 text-rose-700 hover:bg-rose-100"
-            : "border-slate-200 text-slate-600 hover:bg-slate-50"
-        }`}
-      >
-        <span>More details</span>
-        <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
-      </summary>
-
-      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-        {items.map(([label, value]) => (
-          <div
-            key={label}
-            className="min-w-0 rounded-lg border border-slate-200 bg-white p-3"
-          >
-            <p className="text-xs text-slate-500">{label}</p>
-            <p className="mt-1 break-words text-sm font-medium text-slate-800">
-              {value === null || value === undefined || value === ""
-                ? "—"
-                : String(value)}
-            </p>
-          </div>
-        ))}
-      </div>
-    </details>
-  );
-}
-
 function MachineCard({ title, machine, isRefreshing, now }) {
   const production = machine?.data ?? null;
   const error = machine?.error ?? null;
@@ -310,7 +264,8 @@ function MachineCard({ title, machine, isRefreshing, now }) {
 
           {status === "stopped" && (
             <div className="m-3 rounded-lg border border-rose-200 bg-rose-100 p-3 text-sm text-rose-800">
-              No recent production timestamp received within the configured timeout.
+              Machine stopped from {formatLastUpdate(production)}
+              {ago ? ` (${ago})` : ""}
             </div>
           )}
 
@@ -360,9 +315,7 @@ function MachineCard({ title, machine, isRefreshing, now }) {
             </span>
           </div>
 
-          <div className="px-3 pb-3">
-            <ExtraDetails production={production} stopped={stopped} />
-          </div>
+          <div className="pb-3" />
 
           {isRefreshing && (
             <p className="px-4 pb-3 text-xs text-slate-400">Refreshing...</p>
