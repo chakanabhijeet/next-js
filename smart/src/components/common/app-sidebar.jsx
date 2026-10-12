@@ -1,9 +1,11 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+
+import { useAuthStore } from "@/features/auth/store/auth.store";
+import { decodeJwtPayload } from "@/lib/jwt";
 
 import {
   BarChart3,
@@ -61,6 +63,26 @@ export default function AppSidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isLogoutLoading, setIsLogoutLoading] = useState(false);
+
+  /*
+   * Logged-in user (from the auth store).
+   * Falls back to the username inside the token if the
+   * user object has no name.
+   */
+  const user = useAuthStore((state) => state.user);
+  const token = useAuthStore((state) => state.token);
+
+  const tokenPayload = decodeJwtPayload(token);
+
+  const displayName =
+    user?.username ||
+    user?.name ||
+    user?.full_name ||
+    user?.fullName ||
+    tokenPayload?.username ||
+    "User";
+
+  const initial = displayName.charAt(0).toUpperCase();
 
   /*
    * Keep dashboard content width synchronized
@@ -328,8 +350,11 @@ export default function AppSidebar() {
                 collapsed ? "lg:justify-center" : "gap-3"
               }`}
             >
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-sm font-bold text-blue-700 shadow-sm">
-                A
+              <div
+                title={collapsed ? displayName : undefined}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-sm font-bold text-blue-700 shadow-sm"
+              >
+                {initial}
               </div>
 
               <div
@@ -340,7 +365,7 @@ export default function AppSidebar() {
                 }`}
               >
                 <p className="truncate text-[12px] font-semibold text-white">
-                  Administrator
+                  {displayName}
                 </p>
 
                 <p className="truncate text-[10px] text-blue-100/70">
@@ -374,23 +399,28 @@ export default function AppSidebar() {
             </button>
           </div>
         </div>
-<div className="relative shrink-0 border-t border-white/10 px-3 py-4">
-  <div className="rounded-xl bg-white/10 px-3 py-3 text-center backdrop-blur-sm">
-    <p className="text-[11px] font-semibold tracking-wide text-white/90">
-      © {new Date().getFullYear()} Abhijeet Plastics
-    </p>
 
-    <p className="mt-0.5 text-[10px] font-medium text-blue-100/80">
-      Private Limited
-    </p>
+        {/* =======================================================
+            COPYRIGHT
+        ======================================================= */}
+        <div className="relative shrink-0 border-t border-white/10 px-3 py-4">
+          <div className="rounded-xl bg-white/10 px-3 py-3 text-center backdrop-blur-sm">
+            <p className="text-[11px] font-semibold tracking-wide text-white/90">
+              © {new Date().getFullYear()} Abhijeet Plastics
+            </p>
 
-    <div className="mx-auto my-2 h-px w-10 bg-white/20" />
+            <p className="mt-0.5 text-[10px] font-medium text-blue-100/80">
+              Private Limited
+            </p>
 
-    <p className="text-[9px] font-medium uppercase tracking-[0.12em] text-blue-100/60">
-      All Rights Reserved
-    </p>
-  </div>
-</div>
+            <div className="mx-auto my-2 h-px w-10 bg-white/20" />
+
+            <p className="text-[9px] font-medium uppercase tracking-[0.12em] text-blue-100/60">
+              All Rights Reserved
+            </p>
+          </div>
+        </div>
+
         {/* =======================================================
             DESKTOP COLLAPSE BUTTON
         ======================================================= */}
