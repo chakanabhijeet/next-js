@@ -435,7 +435,6 @@
 
 
 
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -451,8 +450,8 @@ import {
 } from "lucide-react";
 
 // A machine is "running" if its last production event is newer than this.
-// Minimum 5 minutes, or 3x the cycle time if that is longer.
-const MIN_TIMEOUT_MS = 15 * 60 * 1000;
+// Fixed 15 minutes for EVERY machine (independent of cycle time).
+const MACHINE_TIMEOUT_MS = 15 * 60 * 1000;
 // Allow small clock differences between server and browser.
 const CLOCK_SKEW_TOLERANCE_MS = 60 * 1000;
 // How often the screen re-checks status even if no new data arrives.
@@ -468,16 +467,6 @@ function parseApiTimestamp(timestamp) {
   const date = new Date(timestamp);
 
   return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function getTimeoutMs(production) {
-  const cycleMs = Number(production?.cycleTimeSec) * 1000;
-
-  if (Number.isFinite(cycleMs) && cycleMs > 0) {
-    return Math.max(MIN_TIMEOUT_MS, cycleMs * 3);
-  }
-
-  return MIN_TIMEOUT_MS;
 }
 
 function formatLastUpdate(production) {
@@ -517,6 +506,7 @@ function formatAgo(production, now) {
   return `${Math.floor(hours / 24)} d ${hours % 24} hr ago`;
 }
 
+// Evaluated separately for every machine card.
 function getMachineStatus(machine, now) {
   const production = machine?.data;
 
@@ -526,6 +516,7 @@ function getMachineStatus(machine, now) {
 
   const timestamp = parseApiTimestamp(getMachineTimestamp(production));
 
+  // No valid timestamp = treat as stopped (red)
   if (!timestamp) return "stopped";
 
   const age = now - timestamp.getTime();
@@ -533,7 +524,8 @@ function getMachineStatus(machine, now) {
   // Timestamp meaningfully in the future = real clock problem
   if (age < -CLOCK_SKEW_TOLERANCE_MS) return "time-error";
 
-  return age <= getTimeoutMs(production) ? "running" : "stopped";
+  // No update for more than 15 minutes = stopped (red)
+  return age <= MACHINE_TIMEOUT_MS ? "running" : "stopped";
 }
 
 function formatDuration(seconds) {
