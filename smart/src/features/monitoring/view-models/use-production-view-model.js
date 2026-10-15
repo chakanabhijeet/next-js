@@ -98,12 +98,12 @@ const MACHINE_REQUESTS = {
   rh03: () =>
     productionService.getVariantAssemblyShift({
       station: "RH",
-      variant: "HIGH",
+      variant: "LOW",
     }),
   lh03: () =>
     productionService.getVariantAssemblyShift({
       station: "LH",
-      variant: "LOW",
+      variant: "HIGH",
     }),
 };
 
