@@ -7,7 +7,7 @@ import { BarChart3 } from "lucide-react";
 export default function MonitoringPage() {
   return (
     <DashboardLayout>
-      <main className="min-h-screen min-w-0 bg-slate-50 p-4 sm:p-6">
+      {/* <main className="min-h-screen min-w-0 bg-slate-50 p-4 sm:p-6">
         <div className="mx-auto w-full max-w-[1800px] min-w-0">
           <header className="mb-6 flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-indigo-600">
@@ -23,7 +23,8 @@ export default function MonitoringPage() {
 
           <HourlyProductionView />
         </div>
-      </main>
+      </main> */}
+     <p>Monitoring page is under construction. Please check back later.</p>
     </DashboardLayout>
   );
 }

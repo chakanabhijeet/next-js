@@ -146,7 +146,7 @@ function MachineStatus({ status }) {
 
   return (
     <span
-      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold ${colors}`}
+      className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-bold sm:text-[11px] ${colors}`}
     >
       <span className={`h-2 w-2 rounded-full ${dot}`} />
       {label}
@@ -154,11 +154,27 @@ function MachineStatus({ status }) {
   );
 }
 
-function MachineIdentity({ title, production, }) {
+/* Only cards with showVariant=true display the variant row. */
+function MachineIdentity({ production, showVariant = false }) {
+  if (!showVariant) return null;
+
+  const variant =
+    production?.variant ??
+    production?.variantName ??
+    production?.variantType ??
+    production?.productVariant ??
+    production?.variant_name ??
+    null;
+
+  const variantLabel =
+    variant == null || String(variant).trim() === ""
+      ? "—"
+      : String(variant).trim();
+
   return (
     <div className="border-b border-slate-100 px-4 py-3">
-      <p className="text-base font-bold text-slate-1000">
-        {/* Station: {production?.station || "—"} */}
+      <p className="break-words text-sm font-bold text-slate-900 sm:text-base">
+        Variant: {variantLabel}
       </p>
     </div>
   );
@@ -172,16 +188,16 @@ function MetricRow({ label, value, stopped, highlight = false }) {
       }`}
     >
       <span
-        className={`text-sm ${
+        className={`min-w-0 break-words text-sm ${
           stopped ? "text-rose-700" : "text-slate-500"
         }`}
       >
         {label}
       </span>
       <span
-        className={`text-right font-semibold ${
+        className={`min-w-0 break-words text-right font-semibold ${
           highlight
-            ? `text-lg ${stopped ? "text-rose-700" : "text-violet-600"}`
+            ? `text-base sm:text-lg ${stopped ? "text-rose-700" : "text-violet-600"}`
             : `text-sm ${stopped ? "text-rose-800" : "text-slate-800"}`
         }`}
       >
@@ -191,7 +207,14 @@ function MetricRow({ label, value, stopped, highlight = false }) {
   );
 }
 
-function MachineCard({ title, badge, machine, isRefreshing, now }) {
+function MachineCard({
+  title,
+  badge,
+  machine,
+  isRefreshing,
+  now,
+  showVariant = false,
+}) {
   const production = machine?.data ?? null;
   const error = machine?.error ?? null;
   const status = getMachineStatus(machine, now);
@@ -201,13 +224,11 @@ function MachineCard({ title, badge, machine, isRefreshing, now }) {
   return (
     <section
       className={`min-w-0 overflow-hidden rounded-2xl border shadow-sm ${
-        stopped
-          ? "border-rose-300 bg-rose-50"
-          : "border-slate-200 bg-white"
+        stopped ? "border-rose-300 bg-rose-50" : "border-slate-200 bg-white"
       }`}
     >
       <header
-        className={`flex min-h-[54px] items-center justify-between gap-2 px-4 py-3 ${
+        className={`flex min-h-[54px] flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between ${
           stopped ? "bg-rose-700" : "bg-indigo-600"
         }`}
       >
@@ -215,10 +236,12 @@ function MachineCard({ title, badge, machine, isRefreshing, now }) {
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/15">
             <Factory className="h-4 w-4 text-white" />
           </div>
-          <h2 className="truncate text-base font-bold text-white">{title}</h2>
+          <h2 className="min-w-0 text-sm font-bold leading-tight text-white sm:text-base">
+            {title}
+          </h2>
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 self-start sm:self-auto">
           {badge && (
             <span className="rounded-md bg-white/20 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-white">
               {badge}
@@ -238,7 +261,7 @@ function MachineCard({ title, badge, machine, isRefreshing, now }) {
           ) : (
             <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-              <div>
+              <div className="min-w-0">
                 <p className="font-semibold">Unable to load machine data</p>
                 <p className="mt-1 break-words">
                   {typeof error === "string"
@@ -258,13 +281,13 @@ function MachineCard({ title, badge, machine, isRefreshing, now }) {
           )}
 
           {status === "stopped" && (
-            <div className="m-3 rounded-lg border border-rose-200 bg-rose-100 p-3 text-sm text-rose-800">
+            <div className="m-3 break-words rounded-lg border border-rose-200 bg-rose-100 p-3 text-sm text-rose-800">
               Machine stopped from {formatLastUpdate(production)}
               {ago ? ` (${ago})` : ""}
             </div>
           )}
 
-          <MachineIdentity title={title} production={production} />
+          <MachineIdentity production={production} showVariant={showVariant} />
 
           <MetricRow label="Shift" value={production.shiftName} stopped={stopped} />
           <MetricRow
@@ -286,7 +309,7 @@ function MachineCard({ title, badge, machine, isRefreshing, now }) {
           />
 
           <div
-            className={`mx-3 mt-3 flex min-h-[46px] items-center justify-between gap-2 rounded-lg px-3 py-2 ${
+            className={`mx-3 mt-3 flex min-h-[46px] flex-col gap-1 rounded-lg px-3 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-2 ${
               stopped ? "bg-rose-200/80" : "bg-violet-50"
             }`}
           >
@@ -299,7 +322,7 @@ function MachineCard({ title, badge, machine, isRefreshing, now }) {
               Last Update
             </span>
             <span
-              className={`text-right text-xs font-bold ${
+              className={`min-w-0 break-words text-left text-xs font-bold sm:text-right ${
                 stopped ? "text-rose-800" : "text-violet-800"
               }`}
             >
@@ -331,7 +354,7 @@ function AssemblyGroup({
 }) {
   return (
     <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-      <div className="grid grid-cols-1 items-start gap-3 xl:grid-cols-2">
+      <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
         <MachineCard
           title={rhTitle}
           machine={rh}
@@ -351,21 +374,22 @@ function AssemblyGroup({
 
 // One common card. Machines are grouped into labelled sections
 // (HIGH together, LOW together) for easier reading.
+// Only cards inside this group show the Variant row.
 function VariantGroup({ sections, isRefreshing, now }) {
   return (
     <section className="min-w-0 space-y-5 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
       {sections.map((section) => (
-        <div key={section.label}>
-          <div className="mb-3 flex items-center gap-3 px-1">
+        <div key={section.label} className="min-w-0">
+          <div className="mb-3 flex flex-wrap items-center gap-3 px-1">
             <span
               className={`rounded-full px-3 py-1 text-xs font-bold tracking-wide ${section.badgeClass}`}
             >
               {section.label}
             </span>
-            <div className="h-px flex-1 bg-slate-200" />
+            <div className="hidden h-px flex-1 bg-slate-200 sm:block" />
           </div>
 
-          <div className="grid grid-cols-1 items-start gap-3 xl:grid-cols-2">
+          <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
             {section.items.map((item) => (
               <MachineCard
                 key={item.title}
@@ -374,6 +398,7 @@ function VariantGroup({ sections, isRefreshing, now }) {
                 machine={item.machine}
                 isRefreshing={isRefreshing}
                 now={now}
+                showVariant={item.showVariant ?? true}
               />
             ))}
           </div>
@@ -410,49 +435,59 @@ export default function DashboardPage() {
 
   return (
     <DashboardLayout>
-      <main className="min-h-screen min-w-0 bg-slate-50 p-4 sm:p-6">
+      <main className="min-h-screen min-w-0 overflow-x-hidden bg-slate-50 p-3 sm:p-6">
         <div className="mx-auto w-full max-w-[1800px] min-w-0">
-          <header className="mb-6 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-indigo-600">
-                <Factory className="h-6 w-6 text-white" />
+          <header className="mb-5 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:mb-6 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-600 sm:h-12 sm:w-12">
+                <Factory className="h-5 w-5 text-white sm:h-6 sm:w-6" />
               </div>
-              <div>
-                <h1 className="text-2xl font-bold text-slate-900">APIPL</h1>
-                <p className="text-sm text-slate-500">Assembly Production Dashboard</p>
+              <div className="min-w-0">
+                <h1 className="truncate text-xl font-bold text-slate-900 sm:text-2xl">
+                  APIPL
+                </h1>
+                <p className="text-xs text-slate-500 sm:text-sm">
+                  Assembly Production Dashboard
+                </p>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 sm:text-sm">
                 {runningCount > 0 ? (
-                  <Wifi className="h-4 w-4 text-emerald-600" />
+                  <Wifi className="h-4 w-4 shrink-0 text-emerald-600" />
                 ) : (
-                  <WifiOff className="h-4 w-4 text-rose-600" />
+                  <WifiOff className="h-4 w-4 shrink-0 text-rose-600" />
                 )}
-                {runningCount}/{allMachines.length} Running
+                <span className="whitespace-nowrap">
+                  {runningCount}/{allMachines.length} Running
+                </span>
               </div>
 
               <button
                 type="button"
                 onClick={refresh}
                 disabled={isRefreshing}
-                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 sm:text-sm"
               >
-                <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+                <RefreshCw
+                  className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
+                />
                 Refresh
               </button>
             </div>
           </header>
 
           <div className="mb-4">
-            <h2 className="text-lg font-bold text-slate-800">Assembly Overview</h2>
-            <p className="mt-1 text-sm text-slate-500">
+            <h2 className="text-base font-bold text-slate-800 sm:text-lg">
+              Assembly Overview
+            </h2>
+            <p className="mt-1 text-xs text-slate-500 sm:text-sm">
               Live production metrics from your production API.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 items-start gap-5 2xl:grid-cols-3">
+          <div className="grid grid-cols-1 items-start gap-4 sm:gap-5 2xl:grid-cols-3">
             <MachineCard
               title="Aero Deflector"
               machine={aero}
@@ -472,7 +507,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="mt-5 min-w-0">
+          <div className="mt-4 min-w-0 sm:mt-5">
             <VariantGroup
               sections={[
                 {
@@ -483,11 +518,13 @@ export default function DashboardPage() {
                       title: "W610 Rear Wheel Arch Cladding RH",
                       badge: "PACK C",
                       machine: rhHigh,
+                      showVariant: true,
                     },
                     {
                       title: "W610 Rear Wheel Arch Cladding LH",
                       badge: "PACK C",
                       machine: lhHigh,
+                      showVariant: true,
                     },
                   ],
                 },
@@ -499,11 +536,13 @@ export default function DashboardPage() {
                       title: "W610 Rear Wheel Arch Cladding RH",
                       badge: "PACK AB",
                       machine: rhLow,
+                      showVariant: true,
                     },
                     {
                       title: "W610 Rear Wheel Arch Cladding LH",
                       badge: "PACK AB",
                       machine: lhLow,
+                      showVariant: true,
                     },
                   ],
                 },
