@@ -154,11 +154,11 @@ function MachineStatus({ status }) {
   );
 }
 
-function MachineIdentity({ title, production }) {
+function MachineIdentity({ title, production, }) {
   return (
     <div className="border-b border-slate-100 px-4 py-3">
       <p className="text-base font-bold text-slate-1000">
-        Station: {production?.station || "—"}
+        {/* Station: {production?.station || "—"} */}
       </p>
     </div>
   );
@@ -521,4 +521,3 @@ export default function DashboardPage() {
     </DashboardLayout>
   );
 }
-

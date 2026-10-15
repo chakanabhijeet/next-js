@@ -1,5 +1,7 @@
+
 export const ROUTES = {
-  LOGIN: "/login",
+  // The login page lives at "/" (src/app/page.js)
+  LOGIN: "/",
   DASHBOARD: "/dashboard",
   USERS: "/dashboard/users",
   PRODUCTS: "/dashboard/products",

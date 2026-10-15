@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -6,6 +7,7 @@ import { usePathname } from "next/navigation";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { decodeJwtPayload } from "@/lib/jwt";
+import { ROUTES } from "@/constants/routes";
 
 import {
   BarChart3,
@@ -71,6 +73,7 @@ export default function AppSidebar() {
    */
   const user = useAuthStore((state) => state.user);
   const token = useAuthStore((state) => state.token);
+  const logout = useAuthStore((state) => state.logout);
 
   const tokenPayload = decodeJwtPayload(token);
 
@@ -112,11 +115,15 @@ export default function AppSidebar() {
   };
 
   const handleLogout = () => {
+    if (isLogoutLoading) return;
+
     setIsLogoutLoading(true);
 
-    setTimeout(() => {
-      window.location.href = "/";
-    }, 500);
+    // Removes the saved login (store + localStorage)
+    logout();
+
+    // Full reload so nothing from this session stays in memory
+    window.location.href = ROUTES.LOGIN;
   };
 
   return (
