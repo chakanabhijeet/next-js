@@ -12,7 +12,7 @@ import { Factory, Clock3, Wifi, WifiOff, Timer, Layers } from "lucide-react";
 const SLIDE_DURATION_MS = 15 * 1000;
 
 // Same rule as the main dashboard: no event for 15 min = stopped.
-const MACHINE_TIMEOUT_MS = 15 * 60 * 1000;
+const MACHINE_TIMEOUT_MS = 10 * 60 * 1000;
 const CLOCK_SKEW_TOLERANCE_MS = 60 * 1000;
 
 // Clock / "x min ago" refresh rate.
