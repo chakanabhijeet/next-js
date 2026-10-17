@@ -9,7 +9,7 @@ import { Factory, Clock3, Wifi, WifiOff, Timer, Layers } from "lucide-react";
    ============================================================ */
 
 // How long each slide stays on screen.
-const SLIDE_DURATION_MS = 35 * 1000;
+const SLIDE_DURATION_MS = 15 * 1000;
 
 // Same rule as the main dashboard: no event for 15 min = stopped.
 const MACHINE_TIMEOUT_MS = 15 * 60 * 1000;
