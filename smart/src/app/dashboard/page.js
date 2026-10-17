@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -19,6 +20,11 @@ const MACHINE_TIMEOUT_MS = 15 * 60 * 1000;
 const CLOCK_SKEW_TOLERANCE_MS = 60 * 1000;
 // How often the screen re-checks status even if no new data arrives.
 const STATUS_TICK_MS = 15 * 1000;
+
+// Shift Production and Day Production are displayed as (actual value + offset).
+// e.g. actual 50 -> shows 51. Set to 0 to show the real value.
+const DAY_PRODUCTION_OFFSET = 1;
+const SHIFT_PRODUCTION_OFFSET = 1;
 
 function getMachineTimestamp(production) {
   return production?.productionTime || production?.createdAt || null;
@@ -292,16 +298,21 @@ function MachineCard({
           <MetricRow label="Shift" value={production.shiftName} stopped={stopped} />
           <MetricRow
             label="Shift Production"
-            value={Number(production.productionCount ?? 0).toLocaleString("en-IN")}
+            value={(
+              Number(production.productionCount ?? 0) + SHIFT_PRODUCTION_OFFSET
+            ).toLocaleString("en-IN")}
             highlight
             stopped={stopped}
           />
           <MetricRow
             label="Day Production"
-            value={Number(production.dayProduction ?? 0).toLocaleString("en-IN")}
+            value={(
+              Number(production.dayProduction ?? 0) + DAY_PRODUCTION_OFFSET
+            ).toLocaleString("en-IN")}
             highlight
             stopped={stopped}
           />
+
           <MetricRow
             label="Cycle Time"
             value={formatDuration(production.cycleTimeSec)}
@@ -392,7 +403,7 @@ function VariantGroup({ sections, isRefreshing, now }) {
           <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
             {section.items.map((item) => (
               <MachineCard
-                key={item.title}
+                key={`${item.title}-${item.badge}`}
                 title={item.title}
                 badge={item.badge}
                 machine={item.machine}
