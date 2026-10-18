@@ -1,0 +1,1 @@
+const MACHINE_TIMEOUT_MS = 10 * 60 * 1000;

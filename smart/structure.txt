@@ -1,0 +1,116 @@
+# Smart Monitoring: Project Structure & Data Traceability
+
+## 1. Architecture in One Minute
+
+The `features/` folder follows an **MVVM pattern**. Every feature is split the same way:
+
+| Layer | Folder | Responsibility |
+|---|---|---|
+| **Model** | `models/` | Shape/normalisation of data (what a Production, Product, User looks like) |
+| **Service** | `services/` | API calls only. No UI, no state |
+| **View-Model** | `view-models/` | React hooks (`use-...-view-model.js`) holding logic, state, grouping and calculations for a screen |
+| **View** | `views/` | Pure UI (`.jsx`) that renders what the view-model gives it |
+| **Store** | `store/` | Global client state (auth only) |
+
+Pages in `src/app/` stay thin: they pick a view-model and render a view or cards.
+
+---
+
+## 2. Complete Folder Tree
+
+```
+smart-monitoring/                                                  # Project root
+├── .env.local                                                     # Local environment variables (API URLs, secrets)
+├── .gitignore                                                     # Files Git must ignore
+├── .next/                                                         # Next.js build/dev cache (generated)
+├── node_modules/                                                  # Installed packages (generated)
+├── public/                                                        # Static assets (images, logos)
+├── AGENTS.md                                                      # Rules for AI coding agents
+├── CLAUDE.md                                                      # Project instructions for Claude Code
+├── README.md                                                      # Project overview and setup steps
+├── components.json                                                # shadcn/ui configuration
+├── eslint.config.mjs                                              # Lint rules
+├── jsconfig.json                                                  # Import path aliases (@/)
+├── next.config.mjs                                                # Next.js config (allowedDevOrigins for LAN IP)
+├── package.json                                                   # Dependencies and scripts
+├── package-lock.json                                              # Locked dependency versions
+├── postcss.config.mjs                                             # PostCSS / Tailwind setup
+├── structure.txt                                                  # Raw folder-tree export
+└── src/                                                           # Application source code
+    ├── app/                                                       # Routes and pages (Next.js App Router)
+    │   ├── favicon.ico                                            # Browser tab icon
+    │   ├── globals.css                                            # Global styles and theme variables
+    │   ├── layout.js                                              # Root layout, global CSS and providers
+    │   ├── page.js                                                # Entry route / (login or redirect)
+    │   ├── dashboard/                                             # Dashboard section (/dashboard)
+    │   │   ├── layout.js                                          # Dashboard shell: sidebar + header
+    │   │   ├── page.js                                            # Main dashboard: machine cards, date picker, detail popup
+    │   │   ├── products/                                          # Products section
+    │   │   │   └── page.js                                        # Products page
+    │   │   └── settings/                                          # Settings section
+    │   │       └── page.js                                        # Settings page
+    │   ├── monitoring/                                            # Monitoring section
+    │   │   └── page.js                                            # Monitoring page: hourly production charts
+    │   └── tv/                                                    # TV display section
+    │       └── page.js                                            # TV page: no sidebar, slides rotate every 35 sec
+    ├── components/                                                # Reusable UI components
+    │   ├── common/                                                # Shared app-wide components
+    │   │   ├── app-sidebar.jsx                                    # Sidebar navigation
+    │   │   └── auth-guard.jsx                                     # Blocks pages for logged-out users
+    │   ├── dashboard/                                             # Dashboard-specific components
+    │   │   └── dashboard-header.jsx                               # Dashboard top bar (title, user menu, logout)
+    │   ├── layout/                                                # Layout shells
+    │   │   └── dashboard-layout.jsx                               # Sidebar + header + content wrapper
+    │   └── ui/                                                    # shadcn/ui building blocks
+    │       ├── avatar.jsx                                         # User picture / initials
+    │       ├── button.jsx                                         # Button
+    │       ├── calendar.jsx                                       # Calendar (date picker)
+    │       ├── card.jsx                                           # Card container (machine cards)
+    │       ├── chart.jsx                                          # Chart wrapper (Recharts)
+    │       ├── dropdown-menu.jsx                                  # Dropdown menu (user menu)
+    │       ├── input.jsx                                          # Text input
+    │       ├── label.jsx                                          # Form label
+    │       ├── popover.jsx                                        # Popover (date picker popup)
+    │       └── separator.jsx                                      # Divider line
+    ├── config/                                                    # App configuration
+    │   ├── api-endpoints.js                                       # All backend API URLs
+    │   ├── constants.js                                           # App-level config values
+    │   └── env.js                                                 # Reads environment variables
+    ├── constants/                                                 # Shared constants
+    │   ├── all-constants.js                                       # Shared constants (timeout, offsets, device IDs)
+    │   └── routes.js                                              # Route path constants
+    ├── features/                                                  # Feature modules (Model / Service / View-Model / View)
+    │   ├── analytics/                                             # Hourly production charts
+    │   │   ├── models/hourly-production.model.js                  # Shapes hourly data for charts
+    │   │   ├── view-models/use-hourly-production-view-model.js    # Hourly data logic and station/variant selection
+    │   │   └── views/hourly-production-view.jsx                   # Hourly bar chart UI
+    │   ├── auth/                                                  # Login and persistent session
+    │   │   ├── models/auth.model.js                               # User / session / token shape
+    │   │   ├── models/login.schema.js                             # Login form validation rules
+    │   │   ├── services/auth.service.js                           # Login / logout API calls
+    │   │   ├── store/auth.store.js                                # Global auth state (persistent login)
+    │   │   ├── view-models/use-login-view-model.js                # Login form logic and redirect
+    │   │   └── views/login-view.jsx                               # Login screen UI
+    │   ├── departments/                                           # Reserved for Monitoring departments (empty)
+    │   ├── monitoring/                                            # Live production data (core of the app)
+    │   │   ├── models/production.model.js                         # Production data shape (shifts, counts, last event)
+    │   │   ├── services/production.service.js                     # Production API calls (live and by date)
+    │   │   └── view-models/use-production-view-model.js           # Card data, grouping, 15-min stop rule (Dashboard + TV)
+    │   ├── products/                                              # Products feature
+    │   │   ├── models/product.model.js                            # Product data shape
+    │   │   ├── services/products.service.js                       # Products API calls
+    │   │   ├── view-models/use-products-view-model.js             # Products list logic
+    │   │   └── views/products-view.jsx                            # Products UI
+    │   └── users/                                                 # Users / employees feature
+    │       ├── models/user.model.js                               # User data shape
+    │       ├── services/user.service.js                           # Users API calls
+    │       ├── view-models/use-users-view-model.js                # Users list logic
+    │       └── views/users-view.jsx                               # Users UI
+    ├── lib/                                                       # Shared helpers
+    │   ├── axios/                                                 # HTTP client
+    │   │   ├── client.js                                          # Configured axios instance
+    │   │   └── interceptors.js                                    # Adds auth token, handles 401 errors
+    │   ├── jwt.js                                                 # JWT decode / expiry helpers
+    │   └── utils.js                                               # Small utilities (class-name merger)
+    └── providers/                                                 # App-wide providers
+        └── query-provider.jsx                                     # Data-fetching / caching provider (Tenstack query)

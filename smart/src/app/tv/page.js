@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useProductionViewModel } from "@/features/monitoring/view-models/use-production-view-model";
-import { Factory, Clock3, Wifi, WifiOff, Timer, Layers } from "lucide-react";
+import { Clock3, Wifi, WifiOff, Timer, Layers } from "lucide-react";
 
 /* ============================================================
    TV SETTINGS
@@ -345,7 +345,9 @@ function InfoTile({ icon: Icon, label, value, sub, compact }) {
         </p>
         <p
           className={`truncate font-medium leading-tight text-slate-400 ${
-            compact ? "min-h-[1.2vw] text-[0.95vw]" : "min-h-[1.5vw] text-[1.15vw]"
+            compact
+              ? "min-h-[1.2vw] text-[0.95vw]"
+              : "min-h-[1.5vw] text-[1.15vw]"
           }`}
         >
           {sub || " "}
@@ -512,7 +514,13 @@ export default function TvPage() {
       key: "aero",
       title: "Aero Deflector",
       short: "Aero Deflector",
-      items: [{ key: "aero", title: "Aero Deflector", machine: machines?.aeroDeflector }],
+      items: [
+        {
+          key: "aero",
+          title: "Aero Deflector",
+          machine: machines?.aeroDeflector,
+        },
+      ],
     },
     {
       key: "door",
@@ -561,7 +569,7 @@ export default function TvPage() {
   useEffect(() => {
     const id = setTimeout(
       () => setIndex((current) => (current + 1) % total),
-      SLIDE_DURATION_MS
+      SLIDE_DURATION_MS,
     );
     return () => clearTimeout(id);
   }, [index, total]);
@@ -599,7 +607,7 @@ export default function TvPage() {
 
   const allMachines = slides.flatMap((item) => item.items);
   const runningCount = allMachines.filter(
-    (item) => statusOf(item.machine) === "running"
+    (item) => statusOf(item.machine) === "running",
   ).length;
 
   const timeText = !ready
@@ -641,9 +649,11 @@ export default function TvPage() {
       {/* ---------- Top bar ---------- */}
       <header className="relative z-10 flex shrink-0 items-center justify-between px-[3vw] pt-[2vh]">
         <div className="flex min-w-0 items-center gap-[1.2vw]">
-          <div className="flex h-[3.8vw] w-[3.8vw] shrink-0 items-center justify-center rounded-[1vw] bg-indigo-600 shadow-lg shadow-indigo-900/50">
-            <Factory className="h-[2.1vw] w-[2.1vw] text-white" />
-          </div>
+          <img
+            src="/logo.png"
+            alt="APIPL logo"
+            className="h-[3.8vw] w-auto max-w-[9vw] shrink-0 rounded-[1vw] bg-white object-contain p-[0.4vw]"
+          />
           <div className="min-w-0">
             <p className="text-[2vw] font-extrabold leading-none tracking-wide">
               APIPL
@@ -696,9 +706,7 @@ export default function TvPage() {
         )}
 
         {/* Machines */}
-        <div
-          className={`flex min-h-0 flex-1 ${pair ? "gap-[1.6vw]" : ""}`}
-        >
+        <div className={`flex min-h-0 flex-1 ${pair ? "gap-[1.6vw]" : ""}`}>
           {slide.items.map((item) => {
             const production = item.machine?.data ?? null;
             const subtitle =
