@@ -1,10 +1,103 @@
 
 
+// import apiClient from "@/lib/axios/client";
+// import { API_ENDPOINTS } from "@/config/api-endpoints";
+
+// export const productionService = {
+//   // Existing machine: Aero Deflector
+//   getAssemblyShift: async () => {
+//     const response = await apiClient.post(
+//       API_ENDPOINTS.PRODUCTION.ASSEMBLY_SHIFT,
+//       {
+//         tenant_id: "02",
+//         device_id: "02@xoom",
+//       }
+//     );
+
+//     return response.data;
+//   },
+
+//   // Existing machine: RH Assembly
+//   getRHAssemblyShift: async () => {
+//     const response = await apiClient.post(
+//       API_ENDPOINTS.PRODUCTION.ASSEMBLY_SHIFT,
+//       {
+//         tenant_id: "TENANT-001",
+//         device_id: "01@xoom",
+//         station: "RH",
+//       }
+//     );
+
+//     return response.data;
+//   },
+
+//   // Existing machine: LH Assembly
+//   getLHAssemblyShift: async () => {
+//     const response = await apiClient.post(
+//       API_ENDPOINTS.PRODUCTION.ASSEMBLY_SHIFT,
+//       {
+//         tenant_id: "TENANT-001",
+//         device_id: "01@xoom",
+//         station: "LH",
+//       }
+//     );
+
+//     return response.data;
+//   },
+
+//   // New device 03@xoom: RH / LH station with a HIGH / LOW variant
+//   getVariantAssemblyShift: async ({ station, variant }) => {
+//     const response = await apiClient.post(
+//       API_ENDPOINTS.PRODUCTION.ASSEMBLY_SHIFT,
+//       {
+//         tenant_id: "02",
+//         device_id: "03@xoom",
+//         station,
+//         variant,
+//       }
+//     );
+
+//     return response.data;
+//   },
+// };
+
+
+
 import apiClient from "@/lib/axios/client";
 import { API_ENDPOINTS } from "@/config/api-endpoints";
 
+/*
+ * TWO APIs:
+ *
+ *  1. LIVE (today)  -> existing ASSEMBLY_SHIFT endpoint  (getXxxShift methods)
+ *  2. PAST DATES    -> new  POST /proddata/yesterday      (getProductionByDate)
+ *
+ * If the new API runs on a different host/port than apiClient's base URL,
+ * put the FULL url in API_ENDPOINTS.PRODUCTION.PROD_DATA
+ * (e.g. "http://192.168.7.113:8000/proddata/yesterday"); axios ignores the
+ * base URL when the url is absolute.
+ */
+const PROD_DATA_ENDPOINT =
+  API_ENDPOINTS?.PRODUCTION?.PROD_DATA ?? "/proddata/yesterday";
+
+/* ------------------------------------------------------------------
+   Which device / station / variant each machine uses on the NEW API.
+   Keys match the keys used by the dashboard and the view model.
+------------------------------------------------------------------ */
+const HISTORY_TARGETS = {
+  aeroDeflector: { device_id: "02@xoom" },
+  rh: { device_id: "01@xoom", station: "RH" },
+  lh: { device_id: "01@xoom", station: "LH" },
+  rhHigh: { device_id: "03@xoom", station: "RH", variant: "HIGH" },
+  rhLow: { device_id: "03@xoom", station: "RH", variant: "LOW" },
+  lhHigh: { device_id: "03@xoom", station: "LH", variant: "HIGH" },
+  lhLow: { device_id: "03@xoom", station: "LH", variant: "LOW" },
+};
+
 export const productionService = {
-  // Existing machine: Aero Deflector
+  /* ================= LIVE (today): existing assembly shift API ================= */
+
+  // Aero Deflector
   getAssemblyShift: async () => {
     const response = await apiClient.post(
       API_ENDPOINTS.PRODUCTION.ASSEMBLY_SHIFT,
@@ -17,7 +110,7 @@ export const productionService = {
     return response.data;
   },
 
-  // Existing machine: RH Assembly
+  // W610 Rear Door Cladding RH
   getRHAssemblyShift: async () => {
     const response = await apiClient.post(
       API_ENDPOINTS.PRODUCTION.ASSEMBLY_SHIFT,
@@ -31,7 +124,7 @@ export const productionService = {
     return response.data;
   },
 
-  // Existing machine: LH Assembly
+  // W610 Rear Door Cladding LH
   getLHAssemblyShift: async () => {
     const response = await apiClient.post(
       API_ENDPOINTS.PRODUCTION.ASSEMBLY_SHIFT,
@@ -45,7 +138,7 @@ export const productionService = {
     return response.data;
   },
 
-  // New device 03@xoom: RH / LH station with a HIGH / LOW variant
+  // W610 Rear Wheel Arch Cladding: RH / LH station with a HIGH / LOW variant
   getVariantAssemblyShift: async ({ station, variant }) => {
     const response = await apiClient.post(
       API_ENDPOINTS.PRODUCTION.ASSEMBLY_SHIFT,
@@ -59,72 +152,38 @@ export const productionService = {
 
     return response.data;
   },
+
+  /* ================= PAST DATES: new proddata API ================= */
+
+  // machineKey = "aeroDeflector" | "rh" | "lh" | "rhHigh" | "rhLow" | "lhHigh" | "lhLow"
+  // date       = "YYYY-MM-DD"
+  getProductionByDate: async (machineKey, date) => {
+    const target = HISTORY_TARGETS[machineKey];
+
+    if (!target) {
+      throw new Error(`Unknown machine: ${machineKey}`);
+    }
+
+    // Payload: device_id, station (if any), variant (if any), date
+    const response = await apiClient.post(PROD_DATA_ENDPOINT, {
+      ...target,
+      date,
+    });
+
+    const data = response.data;
+
+    // Make sure variant cards can always show the variant.
+    return { ...data, variant: data?.variant ?? target.variant ?? null };
+  },
+
+  // Whole-device total for a past date (NO station / variant filter).
+  // Used to check that HIGH + LOW (RH + LH) add up to the device total.
+  getDeviceTotalByDate: async (deviceId, date) => {
+    const response = await apiClient.post(PROD_DATA_ENDPOINT, {
+      device_id: deviceId,
+      date,
+    });
+
+    return response.data;
+  },
 };
-
-
-
-
-
-
-
-// import apiClient from "@/lib/axios/client";
-// import { API_ENDPOINTS } from "@/config/api-endpoints";
-
-// /*
-//  * ONE endpoint for everything:  POST /proddata/yesterday
-//  *
-//  *   - no `date`  -> current (live) data
-//  *   - with `date` ("YYYY-MM-DD") -> that day's production
-//  *
-//  * If you add PROD_DATA to API_ENDPOINTS.PRODUCTION it will be used,
-//  * otherwise this path is used.
-//  */
-// const PROD_DATA_ENDPOINT =
-//   API_ENDPOINTS?.PRODUCTION?.PROD_DATA ?? "/proddata/yesterday";
-
-// async function postProdData(payload) {
-//   // `undefined` fields (no date / no station / no variant) are dropped by
-//   // JSON.stringify, so they are simply not sent.
-//   const response = await apiClient.post(PROD_DATA_ENDPOINT, payload);
-
-//   return response.data;
-// }
-
-// export const productionService = {
-//   // Aero Deflector (device 02@xoom, no station)
-//   getAssemblyShift: (date) =>
-//     postProdData({
-//       device_id: "02@xoom",
-//       date,
-//     }),
-
-//   // W610 Rear Door Cladding RH (device 01@xoom)
-//   getRHAssemblyShift: (date) =>
-//     postProdData({
-//       device_id: "01@xoom",
-//       station: "RH",
-//       date,
-//     }),
-
-//   // W610 Rear Door Cladding LH (device 01@xoom)
-//   getLHAssemblyShift: (date) =>
-//     postProdData({
-//       device_id: "01@xoom",
-//       station: "LH",
-//       date,
-//     }),
-
-//   // W610 Rear Wheel Arch Cladding (device 03@xoom): RH / LH + HIGH / LOW
-//   getVariantAssemblyShift: async ({ station, variant, date }) => {
-//     const data = await postProdData({
-//       device_id: "03@xoom",
-//       station,
-//       variant,
-//       date,
-//     });
-
-//     // Make sure the card can always show the variant, even if the API
-//     // does not echo it back.
-//     return { ...data, variant: data?.variant ?? variant };
-//   },
-// };

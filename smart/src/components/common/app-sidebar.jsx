@@ -445,9 +445,8 @@
 //         </button>
 //       </aside>
 //     </>
-//   );
+//   ); 
 // }
-
 
 
 
@@ -474,12 +473,15 @@ import {
   ChevronRight,
   ClipboardList,
   Cog,
+  ExternalLink,
   Factory,
   FileText,
+  Gauge,
   LayoutDashboard,
   LogOut,
   Menu,
   Settings,
+  Tv,
   Users,
   X,
 } from "lucide-react";
@@ -487,9 +489,12 @@ import {
 /*
  * MENU CONFIG
  *
- * An item with a `children` array becomes an expandable group.
- * To add another department later, just add one more object to the
- * `children` list of Monitoring (icon + label + href).
+ *  - An item with `children` becomes an expandable group (any depth).
+ *  - `newTab: true` opens the link in a new browser tab (used for the TV
+ *    screens, which have no sidebar and run full screen on a TV).
+ *
+ * To add another department later, add one more group inside Monitoring:
+ *   { label: "Painting", icon: Paintbrush, children: [ ...Overview, ...TV ] }
  */
 const navigation = [
   {
@@ -499,22 +504,44 @@ const navigation = [
   },
   {
     label: "Monitoring",
-    href: "/monitoring",
     icon: BarChart3,
     children: [
       {
         label: "Assembly",
-        href: "/monitoring/assembly",
         icon: Cog,
+        children: [
+          {
+            label: "Overview",
+            href: "/monitoring/assembly",
+            icon: Gauge,
+          },
+          {
+            // Existing TV page (src/app/tv)
+            label: "TV",
+            href: "/tv",
+            icon: Tv,
+            newTab: true,
+          },
+        ],
       },
       {
         label: "Moulding",
-        href: "/monitoring/moulding",
         icon: Factory,
+        children: [
+          {
+            label: "Overview",
+            href: "/monitoring/moulding",
+            icon: Gauge,
+          },
+          {
+            // Moulding TV page (build it at src/app/tv/moulding)
+            label: "TV",
+            href: "/tv/moulding",
+            icon: Tv,
+            newTab: true,
+          },
+        ],
       },
-      // More departments (uncomment / add as you build the pages):
-      // { label: "Painting", href: "/monitoring/painting", icon: Paintbrush },
-      // { label: "Quality", href: "/monitoring/quality", icon: ShieldCheck },
     ],
   },
   {
@@ -551,6 +578,52 @@ function isPathActive(pathname, href) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+// A leaf is active on its own route. A group is active when any child is.
+// New-tab links (TV) never count as the current page of this layout.
+function itemMatches(item, pathname) {
+  if (item.children) {
+    return item.children.some((child) => itemMatches(child, pathname));
+  }
+
+  if (item.newTab) return false;
+
+  return isPathActive(pathname, item.href);
+}
+
+// Keys of every group that contains the current page (so they start open).
+function getActiveGroupKeys(items, pathname, parentKey = "") {
+  return items.flatMap((item) => {
+    if (!item.children) return [];
+
+    const key = parentKey ? `${parentKey}/${item.label}` : item.label;
+    const childKeys = getActiveGroupKeys(item.children, pathname, key);
+
+    return itemMatches(item, pathname) ? [key, ...childKeys] : childKeys;
+  });
+}
+
+/*
+ * Look of each nesting level:
+ *   0 = main menu rows, 1 = departments, 2 = items inside a department
+ */
+const LEVEL_STYLES = {
+  0: {
+    row: "h-11 gap-3 px-3 text-[13px] rounded-xl",
+    icon: "h-[18px] w-[18px]",
+    box: true,
+  },
+  1: {
+    row: "h-9 gap-2.5 px-3 text-[12.5px] rounded-lg",
+    icon: "h-4 w-4",
+    box: false,
+  },
+  2: {
+    row: "h-8 gap-2 px-2.5 text-[12px] rounded-lg",
+    icon: "h-[15px] w-[15px]",
+    box: false,
+  },
+};
+
 export default function AppSidebar() {
   const pathname = usePathname();
 
@@ -558,13 +631,10 @@ export default function AppSidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isLogoutLoading, setIsLogoutLoading] = useState(false);
 
-  // Which group (e.g. "Monitoring") is expanded. Starts open if the
-  // current page is inside that group.
-  const [openGroup, setOpenGroup] = useState(
-    () =>
-      navigation.find(
-        (item) => item.children && isPathActive(pathname, item.href)
-      )?.label ?? null
+  // Keys of the groups that are expanded, e.g. "Monitoring",
+  // "Monitoring/Assembly". Starts with the groups that hold the current page.
+  const [openKeys, setOpenKeys] = useState(() =>
+    getActiveGroupKeys(navigation, pathname)
   );
 
   /*
@@ -604,33 +674,33 @@ export default function AppSidebar() {
   }, [collapsed]);
 
   // When you navigate to a page inside a group (link, back button, etc.),
-  // make sure that group is open.
+  // make sure the groups holding it are open.
   useEffect(() => {
-    const activeGroup = navigation.find(
-      (item) => item.children && isPathActive(pathname, item.href)
-    );
+    const activeKeys = getActiveGroupKeys(navigation, pathname);
 
-    if (activeGroup) {
-      setOpenGroup(activeGroup.label);
+    if (activeKeys.length > 0) {
+      setOpenKeys((current) => [...new Set([...current, ...activeKeys])]);
     }
   }, [pathname]);
-
-  const isActive = (href) => isPathActive(pathname, href);
 
   const closeMobileSidebar = () => {
     setMobileOpen(false);
   };
 
-  const toggleGroup = (label) => {
+  const toggleGroup = (key) => {
     // In the collapsed (icon-only) sidebar there is no room for sub-items,
-    // so clicking the group expands the sidebar and opens the group.
+    // so clicking a group expands the sidebar and opens it.
     if (collapsed) {
       setCollapsed(false);
-      setOpenGroup(label);
+      setOpenKeys((current) => [...new Set([...current, key])]);
       return;
     }
 
-    setOpenGroup((current) => (current === label ? null : label));
+    setOpenKeys((current) =>
+      current.includes(key)
+        ? current.filter((openKey) => openKey !== key)
+        : [...current, key]
+    );
   };
 
   const handleLogout = () => {
@@ -644,6 +714,158 @@ export default function AppSidebar() {
     // Full reload so nothing from this session stays in memory
     window.location.href = ROUTES.LOGIN;
   };
+
+  /*
+   * Draws a list of menu items. Calls itself for the children of a group,
+   * so any depth works.
+   *   depth   = 0 main menu, 1 department, 2 item inside a department
+   *   visible = false while the parent group is closed (keeps Tab focus out)
+   */
+  const renderItems = (items, depth = 0, parentKey = "", visible = true) =>
+    items.map((item) => {
+      const key = parentKey ? `${parentKey}/${item.label}` : item.label;
+      const Icon = item.icon;
+      const level = LEVEL_STYLES[Math.min(depth, 2)];
+      const active = itemMatches(item, pathname);
+
+      // Label hides in the collapsed (icon-only) sidebar, main menu only
+      const collapsedLabel =
+        depth === 0
+          ? collapsed
+            ? "lg:w-0 lg:opacity-0"
+            : "w-auto opacity-100"
+          : "";
+
+      const iconNode = level.box ? (
+        <div
+          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+            active ? "bg-blue-50" : "bg-white/5 group-hover:bg-white/10"
+          }`}
+        >
+          <Icon className={level.icon} />
+        </div>
+      ) : (
+        <Icon className={`${level.icon} shrink-0`} />
+      );
+
+      /* ---------- Expandable group ---------- */
+      if (item.children) {
+        const open = openKeys.includes(key) && !collapsed;
+        // Main-menu group: full white when closed, so the active child
+        // can stand out when it is open.
+        const solid = depth === 0 && active && !open;
+
+        return (
+          <div key={key}>
+            <button
+              type="button"
+              onClick={() => toggleGroup(key)}
+              aria-expanded={open}
+              tabIndex={visible ? 0 : -1}
+              title={collapsed && depth === 0 ? item.label : undefined}
+              className={`group flex w-full items-center text-left font-medium transition-all duration-200 ${
+                level.row
+              } ${
+                depth === 0 && collapsed ? "lg:justify-center lg:px-0" : ""
+              } ${
+                solid
+                  ? "bg-white text-[#123b9e] shadow-lg shadow-blue-950/20"
+                  : active
+                    ? "bg-white/15 text-white"
+                    : "text-blue-50 hover:bg-white/10 hover:text-white"
+              }`}
+            >
+              {solid && level.box ? (
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50">
+                  <Icon className={level.icon} />
+                </div>
+              ) : level.box ? (
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/5 group-hover:bg-white/10">
+                  <Icon className={level.icon} />
+                </div>
+              ) : (
+                <Icon className={`${level.icon} shrink-0`} />
+              )}
+
+              <span
+                className={`flex-1 whitespace-nowrap transition-all duration-300 ${
+                  depth === 0
+                    ? collapsed
+                      ? "lg:w-0 lg:flex-none lg:opacity-0"
+                      : "w-auto opacity-100"
+                    : ""
+                }`}
+              >
+                {item.label}
+              </span>
+
+              <ChevronDown
+                className={`h-4 w-4 shrink-0 transition-transform duration-300 ${
+                  open ? "rotate-180" : ""
+                } ${depth === 0 && collapsed ? "lg:hidden" : ""}`}
+              />
+            </button>
+
+            {/* Sub-items: smooth open / close */}
+            <div
+              className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${
+                open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+              } ${collapsed ? "lg:hidden" : ""}`}
+            >
+              <div className="overflow-hidden">
+                <div
+                  className={`mt-1 space-y-1 border-l pl-2.5 ${
+                    depth === 0
+                      ? "ml-[26px] border-white/20"
+                      : "ml-[18px] border-white/15"
+                  }`}
+                >
+                  {renderItems(item.children, depth + 1, key, visible && open)}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      /* ---------- Normal link ---------- */
+      return (
+        <Link
+          key={key}
+          href={item.href}
+          onClick={closeMobileSidebar}
+          tabIndex={visible ? 0 : -1}
+          title={collapsed && depth === 0 ? item.label : undefined}
+          // TV screens open in a new tab (they have no sidebar)
+          target={item.newTab ? "_blank" : undefined}
+          rel={item.newTab ? "noopener noreferrer" : undefined}
+          className={`group flex items-center font-medium transition-all duration-200 ${
+            level.row
+          } ${depth === 0 && collapsed ? "lg:justify-center lg:px-0" : ""} ${
+            active
+              ? "bg-white text-[#123b9e] shadow-md shadow-blue-950/20"
+              : "text-blue-50 hover:bg-white/10 hover:text-white"
+          }`}
+        >
+          {iconNode}
+
+          <span
+            className={`whitespace-nowrap transition-all duration-300 ${collapsedLabel}`}
+          >
+            {item.label}
+          </span>
+
+          {item.newTab && (
+            <ExternalLink
+              className={`ml-auto h-3.5 w-3.5 shrink-0 opacity-70 ${
+                depth === 0 && collapsed ? "lg:hidden" : ""
+              }`}
+              aria-label="Opens in a new tab"
+            />
+          )}
+        </Link>
+      );
+    });
 
   return (
     <>
@@ -750,7 +972,7 @@ export default function AppSidebar() {
             NAVIGATION
 
             The scrollbar is hidden, but the menu can still scroll
-            on a short screen when a group is open, so nothing is
+            on a short screen when groups are open, so nothing is
             ever cut off.
         ======================================================= */}
         <nav className="relative flex-1 overflow-y-auto px-3 py-5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -763,144 +985,7 @@ export default function AppSidebar() {
             Main Menu
           </p>
 
-          <div className="space-y-1.5">
-            {navigation.map((item) => {
-              const Icon = item.icon;
-              const active = isActive(item.href);
-
-              /* ---------- Expandable group (e.g. Monitoring) ---------- */
-              if (item.children) {
-                const open = openGroup === item.label && !collapsed;
-                // Group is "highlighted fully" only when closed, so the
-                // active child can stand out when it is open.
-                const parentSolid = active && !open;
-                const parentSoft = active && open;
-
-                return (
-                  <div key={item.href}>
-                    <button
-                      type="button"
-                      onClick={() => toggleGroup(item.label)}
-                      aria-expanded={open}
-                      title={collapsed ? item.label : undefined}
-                      className={`group flex h-11 w-full items-center rounded-xl text-left transition-all duration-200 ${
-                        collapsed
-                          ? "lg:justify-center lg:px-0"
-                          : "gap-3 px-3"
-                      } ${
-                        parentSolid
-                          ? "bg-white text-[#123b9e] shadow-lg shadow-blue-950/20"
-                          : parentSoft
-                            ? "bg-white/15 text-white"
-                            : "text-blue-50 hover:bg-white/10 hover:text-white"
-                      }`}
-                    >
-                      <div
-                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                          parentSolid
-                            ? "bg-blue-50"
-                            : "bg-white/5 group-hover:bg-white/10"
-                        }`}
-                      >
-                        <Icon className="h-[18px] w-[18px]" />
-                      </div>
-
-                      <span
-                        className={`flex-1 whitespace-nowrap text-[13px] font-medium transition-all duration-300 ${
-                          collapsed
-                            ? "lg:w-0 lg:flex-none lg:opacity-0"
-                            : "w-auto opacity-100"
-                        }`}
-                      >
-                        {item.label}
-                      </span>
-
-                      <ChevronDown
-                        className={`h-4 w-4 shrink-0 transition-transform duration-300 ${
-                          open ? "rotate-180" : ""
-                        } ${collapsed ? "lg:hidden" : ""}`}
-                      />
-                    </button>
-
-                    {/* Sub-items: smooth open / close */}
-                    <div
-                      className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${
-                        open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
-                      } ${collapsed ? "lg:hidden" : ""}`}
-                    >
-                      <div className="overflow-hidden">
-                        <div className="ml-[26px] mt-1.5 space-y-1 border-l border-white/20 pl-3">
-                          {item.children.map((child) => {
-                            const ChildIcon = child.icon;
-                            const childActive = isActive(child.href);
-
-                            return (
-                              <Link
-                                key={child.href}
-                                href={child.href}
-                                onClick={closeMobileSidebar}
-                                tabIndex={open ? 0 : -1}
-                                className={`group flex h-9 items-center gap-2.5 rounded-lg px-3 text-[12.5px] font-medium transition-all duration-200 ${
-                                  childActive
-                                    ? "bg-white text-[#123b9e] shadow-md shadow-blue-950/20"
-                                    : "text-blue-100/90 hover:bg-white/10 hover:text-white"
-                                }`}
-                              >
-                                <ChildIcon className="h-4 w-4 shrink-0" />
-
-                                <span className="whitespace-nowrap">
-                                  {child.label}
-                                </span>
-                              </Link>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              }
-
-              /* ---------- Normal link ---------- */
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={closeMobileSidebar}
-                  title={collapsed ? item.label : undefined}
-                  className={`group flex h-11 items-center rounded-xl transition-all duration-200 ${
-                    collapsed
-                      ? "lg:justify-center lg:px-0"
-                      : "gap-3 px-3"
-                  } ${
-                    active
-                      ? "bg-white text-[#123b9e] shadow-lg shadow-blue-950/20"
-                      : "text-blue-50 hover:bg-white/10 hover:text-white"
-                  }`}
-                >
-                  <div
-                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                      active
-                        ? "bg-blue-50"
-                        : "bg-white/5 group-hover:bg-white/10"
-                    }`}
-                  >
-                    <Icon className="h-[18px] w-[18px]" />
-                  </div>
-
-                  <span
-                    className={`whitespace-nowrap text-[13px] font-medium transition-all duration-300 ${
-                      collapsed
-                        ? "lg:w-0 lg:opacity-0"
-                        : "w-auto opacity-100"
-                    }`}
-                  >
-                    {item.label}
-                  </span>
-                </Link>
-              );
-            })}
-          </div>
+          <div className="space-y-1.5">{renderItems(navigation)}</div>
 
           {/* Divider */}
           <div className="my-6 h-px bg-white/10" />
@@ -914,50 +999,7 @@ export default function AppSidebar() {
             System
           </p>
 
-          <div className="space-y-1.5">
-            {secondaryNavigation.map((item) => {
-              const Icon = item.icon;
-              const active = isActive(item.href);
-
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={closeMobileSidebar}
-                  title={collapsed ? item.label : undefined}
-                  className={`group flex h-11 items-center rounded-xl transition-all duration-200 ${
-                    collapsed
-                      ? "lg:justify-center lg:px-0"
-                      : "gap-3 px-3"
-                  } ${
-                    active
-                      ? "bg-white text-[#123b9e]"
-                      : "text-blue-50 hover:bg-white/10 hover:text-white"
-                  }`}
-                >
-                  <div
-                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                      active
-                        ? "bg-blue-50"
-                        : "bg-white/5 group-hover:bg-white/10"
-                    }`}
-                  >
-                    <Icon className="h-[18px] w-[18px]" />
-                  </div>
-
-                  <span
-                    className={`whitespace-nowrap text-[13px] font-medium transition-all duration-300 ${
-                      collapsed
-                        ? "lg:w-0 lg:opacity-0"
-                        : "w-auto opacity-100"
-                    }`}
-                  >
-                    {item.label}
-                  </span>
-                </Link>
-              );
-            })}
-          </div>
+          <div className="space-y-1.5">{renderItems(secondaryNavigation)}</div>
         </nav>
 
         {/* =======================================================
