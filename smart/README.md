@@ -26,10 +26,10 @@
 - **Stopped-machine detection**: if no new production event arrives for **15 minutes**, the machine turns red.
 - **Machine detail popup**: click any card to see OEE gauges, a breakdown chart and machine details.
 - **Hourly analytics**: hourly production bar charts (shadcn charts) on the Monitoring page.
-- **Date picker / history**: view past days using the production-by-date API. "Stopped from" is shown only on the live (today) view.
+- **Date picker / history**: view production for any past day. The "stopped from" indicator appears only on the live (today) view.
 - **TV mode (`/tv`)**: sidebar-free, auto-rotating slides (every 35 seconds) with paired machines grouped together.
 - **Persistent login**: stay signed in across tab and browser restarts until you press **Logout**.
-- **Department navigation**: Monitoring expands into **Assembly**, **Moulding** (more departments coming), each with a **TV** sub-option.
+- **Department navigation**: Monitoring expands into **Assembly** and **Moulding** (more departments coming), each with a **TV** sub-option.
 - **Responsive, branded UI**: blue/cyan theme, built with shadcn/ui and Tailwind CSS.
 
 ## Monitored Machines
@@ -38,7 +38,7 @@
 |------|----------|-------|
 | Aero Deflector | Aero Deflector | Shown alone |
 | W610 Rear Door Cladding | RH + LH | No variant |
-| W610 Rear Wheel Arch Cladding | RH + LH (device `03@xoom`) | **HIGH** = Pack C, **LOW** = Pack AB, grouped by variant |
+| W610 Rear Wheel Arch Cladding | RH + LH | **HIGH** = Pack C, **LOW** = Pack AB, grouped by variant |
 
 Production values shown on cards are the actual count **+1** (offset constants live in `page.js`).
 
@@ -70,14 +70,15 @@ Sidebar sections: Dashboard, Monitoring, Employees, Reports, Activities, Setting
 
 - Node.js 18.18 or newer
 - npm, yarn or pnpm
-- Network access to the production APIs (see below)
 
 ### Installation
 
 ```bash
 # clone the repository
-git clone <your-repo-url>
-cd <project-folder>
+git clone https://github.com/chakanabhijeet/next-js.git
+
+# the project lives in the "smart" folder
+cd next-js/smart
 
 # install dependencies
 npm install
@@ -101,17 +102,6 @@ const nextConfig = {
 export default nextConfig;
 ```
 
-### Environment variables
-
-Create a `.env.local` file in the project root:
-
-```env
-NEXT_PUBLIC_API_BASE_URL=<assembly shift API base URL>
-NEXT_PUBLIC_PRODDATA_API_URL=http://192.168.7.113:8000
-```
-
-> Adjust the names to match your `config/` folder. Never commit `.env.local`.
-
 ### Scripts
 
 | Command | Description |
@@ -121,38 +111,13 @@ NEXT_PUBLIC_PRODDATA_API_URL=http://192.168.7.113:8000
 | `npm run start` | Run the production build |
 | `npm run lint` | Lint the codebase |
 
-## Data Sources
-
-The dashboard uses two APIs depending on the selected date.
-
-**1. Live data (today): `assemblyshift`**
-`POST` endpoint returning current shift production. Variant devices send `variant` (`HIGH` / `LOW`) plus `station` (`RH` / `LH`). Used for today and keeps the "machine stopped from" logic.
-
-**2. Historical data (past dates): `proddata/yesterday`**
-
-```http
-POST http://192.168.7.113:8000/proddata/yesterday
-Content-Type: application/json
-
-{
-  "device_id": "01@xoom",
-  "station": "RH",
-  "date": "2026-10-21",
-  "variant": "HIGH"
-}
-```
-
-- `variant` is only needed for variant devices.
-- The response contains `shifts`: **Complete Day**, **Shift A**, **Shift B**, each with `production_count` and `total_production`.
-- Used **only** for past dates. Past dates never show "stopped from".
-
 ## Project Structure
 
 ```text
 src/
 ├── app/                  # Routes: dashboard (products, settings), monitoring, tv
 ├── components/           # common, dashboard, layout, ui (shadcn)
-├── config/               # App and API configuration
+├── config/               # App configuration
 ├── constants/            # Shared constants
 ├── features/             # Feature modules
 │   ├── analytics/
@@ -165,18 +130,18 @@ src/
     └── query-provider.jsx
 ```
 
-Each feature follows an **MVVM-style split**: `models` (types and shapes), `services` (API calls), `view-models` (logic and state), `views` (UI). For a file-by-file description see [`PROJECT_STRUCTURE.md`](./PROJECT_STRUCTURE.md).
+Each feature follows an **MVVM-style split**: `models` (types and shapes), `services` (data access), `view-models` (logic and state), `views` (UI). For a file-by-file description see [`PROJECT_STRUCTURE.md`](./PROJECT_STRUCTURE.md).
 
 ## How It Works
 
 ```text
-Machine events ──► Production APIs ──► services ──► view-models ──► views
-                                                      │
-                                    useProductionViewModel
-                                    (shared by Dashboard and /tv)
+Services ──► view-models ──► views
+                │
+   useProductionViewModel
+   (shared by Dashboard and /tv)
 ```
 
-1. Services call the live or historical API depending on the selected date.
+1. Services fetch production data for the selected date.
 2. `useProductionViewModel` normalises the data, applies the +1 offset and the 15-minute stopped rule.
 3. Dashboard cards, popups and TV slides all read from the same view model, so the numbers always match.
 
