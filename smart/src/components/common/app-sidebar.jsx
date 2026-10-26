@@ -731,7 +731,7 @@ const navigation = [
           {
             // Moulding TV page (build it at src/app/tv/moulding)
             label: "TV",
-            href: "/tv/moulding",
+            href: "/tv2",
             icon: Tv,
             newTab: true,
           },
