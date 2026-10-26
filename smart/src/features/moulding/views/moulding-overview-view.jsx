@@ -614,9 +614,6 @@
 //   );
 // }
 
-
-
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -807,7 +804,9 @@ function StatTile({ icon: Icon, label, value, sub, stopped, small = false }) {
       <div className="flex items-center gap-2">
         <div
           className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-            stopped ? "bg-rose-200 text-rose-700" : "bg-violet-50 text-violet-600"
+            stopped
+              ? "bg-rose-200 text-rose-700"
+              : "bg-violet-50 text-violet-600"
           }`}
         >
           <Icon className="h-4 w-4" />
@@ -953,7 +952,7 @@ function ImmMachineCard({ config, machine, isRefreshing, now }) {
             <StatTile
               icon={Timer}
               label="Cycle Time"
-              value={formatCycleTime(production.cycleTimeSec)}
+              value={`${Number(production.cycleTimeSec).toFixed(2)} sec`}
               sub="Last cycle"
               stopped={stopped}
             />
@@ -1026,7 +1025,7 @@ export default function MouldingOverviewView() {
   }, []);
 
   const runningCount = IMM_MACHINES.filter(
-    (config) => getMachineStatus(machines?.[config.key], now) === "running"
+    (config) => getMachineStatus(machines?.[config.key], now) === "running",
   ).length;
 
   // Department totals (adds up every machine that has data)
@@ -1039,7 +1038,7 @@ export default function MouldingOverviewView() {
         day: sum.day + Number(data?.dayProduction ?? 0),
       };
     },
-    { shift: 0, day: 0 }
+    { shift: 0, day: 0 },
   );
 
   return (
@@ -1093,7 +1092,6 @@ export default function MouldingOverviewView() {
               icon={Activity}
               label="Machines Running"
               value={`${runningCount} / ${IMM_MACHINES.length}`}
-            
               tone="emerald"
             />
             <SummaryTile
@@ -1126,7 +1124,6 @@ export default function MouldingOverviewView() {
               <ImmMachineCard
                 key={config.key}
                 config={config}
-
                 machine={machines?.[config.key]}
                 isRefreshing={isRefreshing}
                 now={now}
