@@ -873,12 +873,12 @@ function CycleTimeLogStats({ stats, loading, error }) {
             <table className="w-full min-w-[850px] border-collapse text-left text-sm">
               <thead className="bg-slate-100 text-[10px] uppercase tracking-wide text-slate-600 sm:text-xs">
                 <tr>
-                  <th className="px-4 py-3">Shot No.</th>
-                  <th className="px-4 py-3">Production Count</th>
-                  <th className="px-4 py-3">Mould No.</th>
+                  <th className="px-4 py-3">Shot Count</th>
+                  {/* <th className="px-4 py-3">Production Count</th> */}
+                  {/* <th className="px-4 py-3">Mould No.</th> */}
                   <th className="px-4 py-3">Cycle Time</th>
                   <th className="px-4 py-3">Production Time</th>
-                  <th className="px-4 py-3">Status</th>
+                  {/* <th className="px-4 py-3">Status</th> */}
                 </tr>
               </thead>
 
@@ -902,13 +902,13 @@ function CycleTimeLogStats({ stats, loading, error }) {
                         {shots.length - index}
                       </td>
 
-                      <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-700">
+                      {/* <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-700">
                         {shot.production_count ?? "—"}
-                      </td>
+                      </td> */}
 
-                      <td className="whitespace-nowrap px-4 py-3 text-slate-600">
+                      {/* <td className="whitespace-nowrap px-4 py-3 text-slate-600">
                         {textOrDash(shot.mold_no)}
-                      </td>
+                      </td> */}
 
                       <td className="whitespace-nowrap px-4 py-3 font-bold tabular-nums text-violet-700">
                         {hasCycleTime
@@ -920,17 +920,7 @@ function CycleTimeLogStats({ stats, loading, error }) {
                         {formatShotProductionTime(shot.production_time)}
                       </td>
 
-                      <td className="whitespace-nowrap px-4 py-3">
-                        <span
-                          className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                            shot.reset
-                              ? "bg-amber-100 text-amber-700"
-                              : "bg-emerald-50 text-emerald-700"
-                          }`}
-                        >
-                          {shot.reset ? "Reset" : "Normal"}
-                        </span>
-                      </td>
+                     
                     </tr>
                   );
                 })}
