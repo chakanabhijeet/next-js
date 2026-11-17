@@ -1,34 +1,4 @@
 
-// function toFiniteNumber(value) {
-//   if (value === null || value === undefined || value === "") {
-//     return null;
-//   }
-
-//   const number = Number(value);
-//   return Number.isFinite(number) ? number : null;
-// }
-
-// /**
-//  * Normalize the response from POST /proddata/immlog.
-//  */
-// export function normalizeImmLogResponse(response) {
-//   const body = response;
-//   const shots = Array.isArray(body?.data) ? body.data : [];
-
-//   return {
-//     shots,
-//     shotCount: shots.length,
-//     minCycleTimeSec: toFiniteNumber(body?.min_cycle_time_sec),
-//     maxCycleTimeSec: toFiniteNumber(body?.max_cycle_time_sec),
-//     avgCycleTimeSec: toFiniteNumber(body?.avg_cycle_time_sec),
-//   };
-// }
-
-
-
-
-
-
 
 function toFiniteNumber(value) {
   if (value === null || value === undefined || value === "") {
