@@ -25,6 +25,7 @@ import {
   Settings,
   Tv,
   Users,
+  UserPlus,
   X,
 } from "lucide-react";
 
@@ -87,11 +88,22 @@ const navigation = [
       },
     ],
   },
-  {
-    label: "Employees",
-    href: "/employees",
-    icon: Users,
-  },
+{
+  label: "Employees",
+  icon: Users,
+  children: [
+    {
+      label: "All Employees",
+      href: "/employees",
+      icon: Users,
+    },
+    {
+      label: "Create Employee",
+      href: "/employees/create",
+      icon: UserPlus,
+    },
+  ],
+},
   {
     label: "Reports",
     href: "/reports",
