@@ -1,5 +1,3 @@
-
-
 function toFiniteNumber(value) {
   if (value === null || value === undefined || value === "") {
     return null;

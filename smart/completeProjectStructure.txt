@@ -1,0 +1,396 @@
+================================================================================
+SMART MONITORING SYSTEM - COMPLETE PROJECT STRUCTURE
+================================================================================
+Generated: 2026-11-20
+Platform: Next.js 16.3.8 | React 19.2.8 | Tailwind CSS 4
+================================================================================
+
+This document lists every source file in the project with a description of its
+purpose. Use it as a reference when navigating or modifying the codebase.
+
+--------------------------------------------------------------------------------
+ROOT LEVEL CONFIGURATION
+--------------------------------------------------------------------------------
+
+package.json
+  Project manifest. Defines name "smart", version 0.1.0, and all dependencies
+  (Next.js 16.3.8, React 19.2.8, TanStack Query v5, Axios, React Hook Form,
+  Zod, Zustand, Lucide React, Recharts, date-fns, Shadcn UI, Tailwind CSS 4).
+  Scripts: dev, build, start (all run with --webpack flag).
+
+next.config.mjs
+  Next.js configuration. Enables React Compiler (reactCompiler: true) and
+  allows development origins on the 192.168.*.* network range.
+
+jsconfig.json
+  JavaScript project configuration (path aliases, module resolution).
+
+eslint.config.mjs
+  ESLint flat config using eslint-config-next for Next.js best practices.
+
+postcss.config.mjs
+  PostCSS configuration for processing Tailwind CSS v4.
+
+.env.local
+  Local environment variables (not committed to version control).
+
+README.md
+  Project overview and setup instructions.
+
+AGENTS.md
+  Instructions for AI coding agents working on this project.
+
+CLAUDE.md
+  Instructions specific to Claude AI assistants.
+
+structure.txt
+  Existing project structure reference file (previously in the repo).
+--------------------------------------------------------------------------------
+PUBLIC ASSETS
+--------------------------------------------------------------------------------
+
+public/logo.png
+  Application logo (ABHIJEET).
+
+public/file.svg, public/globe.svg, public/next.svg, public/vercel.svg,
+public/window.svg
+  Static SVG/PNG assets used in the UI.
+
+public/favicon.ico
+  Site favicon (located under src/app/).
+
+--------------------------------------------------------------------------------
+SRC/APP - NEXT.JS APP ROUTER (PAGES & LAYOUTS)
+--------------------------------------------------------------------------------
+
+src/app/layout.js
+  Root layout component. Sets up the Inter font, page metadata (title: "Smart
+  Monitoring System"), wraps children in QueryProvider (TanStack Query), and
+  imports global CSS. All pages are wrapped by this layout.
+
+src/app/page.js
+  Login page route ("/"). Wraps LoginView in GuestGuard so authenticated users
+  are redirected to the dashboard.
+
+src/app/globals.css
+  Global CSS styles including Tailwind directives.
+
+src/app/favicon.ico
+  Favicon for the application.
+
+src/app/dashboard/layout.js
+  Dashboard shell layout. Simple flex container with sidebar (commented out)
+  and a main content area.
+
+src/app/dashboard/page.js
+  Main dashboard / assembly monitoring page. Displays machine cards with live
+  production status, shift/day production totals, last update timestamps, and
+  running/stopped indicators. Uses useProductionViewModel.
+
+src/app/dashboard/products/page.js
+  Products management page route ("/dashboard/products").
+
+src/app/dashboard/settings/page.js
+  Settings page route ("/dashboard/settings").
+
+src/app/monitoring/page.js
+  Monitoring landing page ("/monitoring"). Currently shows "under construction"
+  message; the HourlyProductionView is commented out.
+
+src/app/monitoring/moulding/page.js
+  Moulding overview page route ("/monitoring/moulding"). Renders
+  MouldingOverviewView from the moulding feature.
+
+src/app/employees/create/page.js
+  Create employee page route ("/employees/create"). Wraps CreateEmployeeView
+  in DashboardLayout (SuperAdminGuard is commented out).
+
+src/app/tv/page.js
+  TV display page for assembly machines. Full-screen rotating slides showing
+  machine status, production counts, and last update times. Uses
+  useProductionViewModel.
+
+src/app/tv2/page.js
+  TV display page for moulding machines (IMM). Full-screen rotating slides
+  showing injection moulding machine status. Uses useImmViewModel and
+  IMM_MACHINES config.
+--------------------------------------------------------------------------------
+SRC/Components - REUSABLE UI COMPONENTS
+--------------------------------------------------------------------------------
+
+src/components/layout/dashboard-layout.jsx
+  Main dashboard layout wrapper. Wraps children in AuthGuard, renders AppSidebar,
+  and a main content area with responsive sidebar width.
+
+src/components/common/app-sidebar.jsx
+  Collapsible navigation sidebar. Defines the full menu structure:
+  - Dashboard
+  - Monitoring (Assembly Overview, TV; Moulding Overview, TV)
+  - Employees (All Employees, Create Employee)
+  - Reports, Activities, Settings
+  Includes user profile, logout button, and collapse toggle.
+
+src/components/common/auth-guard.jsx
+  Route protection components:
+  - AuthGuard: Redirects to login if user is not authenticated. Shows loader
+    while auth state is hydrating from localStorage.
+  - GuestGuard: Redirects to dashboard if user is already authenticated
+    (used on the login page).
+
+src/components/common/role-guard.jsx
+  Role-based access control:
+  - SuperAdminGuard: Shows children only to super admins; others see an
+    "Access restricted" message.
+
+src/components/dashboard/dashboard-header.jsx
+  Dashboard header component (if used in page headers).
+
+src/components/ui/button.jsx
+  Reusable Button component with variants (shadcn/ui pattern).
+
+src/components/ui/card.jsx
+  Reusable Card component (shadcn/ui pattern).
+
+src/components/ui/chart.jsx
+  Reusable chart wrapper component (recharts-based).
+
+src/components/ui/input.jsx
+  Reusable Input component (shadcn/ui pattern).
+
+src/components/ui/label.jsx
+  Reusable Label component (shadcn/ui pattern).
+
+src/components/ui/avatar.jsx
+  Reusable Avatar component (shadcn/ui pattern).
+
+src/components/ui/calendar.jsx
+  Reusable Calendar component (react-day-picker based).
+
+src/components/ui/dropdown-menu.jsx
+  Reusable DropdownMenu component (shadcn/ui pattern).
+
+src/components/ui/popover.jsx
+  Reusable Popover component (shadcn/ui pattern).
+
+src/components/ui/separator.jsx
+  Reusable Separator component (shadcn/ui pattern).
+
+--------------------------------------------------------------------------------
+SRC/CONFIG - APPLICATION CONFIGURATION
+--------------------------------------------------------------------------------
+
+src/config/api-endpoints.js
+  Centralized API endpoint definitions:
+  - AUTH.LOGIN: /users/loginuser
+  - DASHBOARD.SUMMARY: /dashboard
+  - USERS.LIST / USERS.DETAIL(id)
+  - PRODUCTS.LIST / PRODUCTS.DETAIL(id)
+  - DEPARTMENTS.CREATE: /dept/createdept
+  - PERMISSIONS.CREATE: /permission/createpermission
+  - PRODUCTION.ASSEMBLY_SHIFT: /proddata/assemblyshift
+  - PRODUCTION.PROD_DATA: /proddata/yesterday
+  - PRODUCTION.IMM_SHIFTWISE: /proddata/immshiftwise
+  - PRODUCTION.IMM_LOG: http://192.168.7.144:8000/proddata/immlog
+
+src/config/constants.js
+  Base URL configuration. Currently set to https://api.xoomgrid.com.
+
+src/config/env.js
+  Environment variable resolution. Reads NEXT_PUBLIC_API_URL with fallback
+  to https://api.xoomgrid.com.
+
+--------------------------------------------------------------------------------
+SRC/CONSTANTS - APPLICATION CONSTANTS
+--------------------------------------------------------------------------------
+
+src/constants/all-constants.js
+  Machine timeout constant (MACHINE_TIMEOUT_MS = 10 minutes).
+
+src/constants/roles.js
+  Super admin role definitions. SUPER_ADMIN_ROLES = ["superadmin", "super_admin"].
+  Provides isSuperAdminRole() helper function.
+
+src/constants/routes.js
+  Application route constants:
+  - LOGIN: "/"
+  - DASHBOARD: "/dashboard"
+  - USERS: "/dashboard/users"
+  - PRODUCTS: "/dashboard/products"
+  - SETTINGS: "/dashboard/settings"
+--------------------------------------------------------------------------------
+SRC/FEATURES - FEATURE-BASED MODULES
+--------------------------------------------------------------------------------
+
+Each feature follows the pattern: models/, services/, view-models/, views/,
+and optionally store/.
+
+--- auth: Authentication ---
+
+src/features/auth/models/auth.model.js
+  normalizeLoginResponse(): Extracts token and user from API login response.
+  Handles multiple possible field names (token, access_token, accessToken,
+  user, employee).
+
+src/features/auth/models/login.schema.js
+  Zod validation schema for the login form. Validates employee_id and password
+  as required strings.
+
+src/features/auth/services/auth.service.js
+  authService.login(credentials): Calls the login API endpoint and normalizes
+  the response using normalizeLoginResponse.
+
+src/features/auth/store/auth.store.js
+  Zustand store for authentication state. Manages user, token,
+  isAuthenticated, and hasHydrated. Persists to localStorage (key: "xoomgrid-auth").
+  Provides setAuth(), setUser(), logout(), setHasHydrated() actions.
+
+src/features/auth/view-models/use-login-view-model.js
+  Login view logic. Handles form state (react-hook-form + zod), submission,
+  mutation via TanStack Query, token storage in localStorage, and redirection
+  to dashboard on success.
+
+src/features/auth/view-models/use-auth-role.js
+  Hook that decodes the user's role from the stored user object or JWT token.
+  Returns { role, isSuperAdmin }.
+
+src/features/auth/views/login-view.jsx
+  Login page UI. Beautiful gradient background with form, password toggle,
+  remember me, server error display, and submit button.
+
+--- employees: Employee Management ---
+
+src/features/employees/models/employee.model.js
+  Employee data model / normalization logic.
+
+src/features/employees/models/employee.schema.js
+  Zod validation schema for employee creation forms.
+
+src/features/employees/services/employee.service.js
+  API service for employee CRUD operations.
+
+src/features/employees/view-models/use-create-employee-view-model.js
+  View logic for creating a new employee (form handling, submission).
+
+src/features/employees/views/create-employee-view.jsx
+  UI for the create employee page.
+
+--- moulding: Injection Moulding Monitoring ---
+
+src/features/moulding/models/imm-production.model.js
+  Data model for injection moulding production responses.
+
+src/features/moulding/models/imm-log.model.js
+  Data model for injection moulding shot log responses (cycle times, etc.).
+
+src/features/moulding/services/imm-production.service.js
+  API service for fetching IMM shift-wise production and log statistics.
+
+src/features/moulding/view-models/use-imm-view-model.js
+  View model for the moulding overview. Defines IMM_MACHINES config array
+  (machine key, deviceId, machineId), manages machine state (data, error,
+  loading, logStats), and provides refresh() with polling interval.
+
+src/features/moulding/views/moulding-overview-view.jsx
+  Moulding overview page UI. Grid of ImmMachineCard components showing live
+  production metrics for each injection moulding machine. Includes summary
+  tiles (machines running, shift production, day production).
+
+--- monitoring: Assembly Production Monitoring ---
+
+src/features/monitoring/models/production.model.js
+  Data model for assembly production responses.
+
+src/features/monitoring/services/production.service.js
+  API service for fetching assembly production data.
+
+src/features/monitoring/view-models/use-production-view-model.js
+  View model for assembly machine monitoring. Manages machine data, status
+  (running/stopped/loading/error), and refresh polling.
+
+--- analytics: Hourly Production Analytics ---
+
+src/features/analytics/models/hourly-production.model.js
+  Data model for hourly production analytics.
+
+src/features/analytics/view-models/use-hourly-production-view-model.js
+  View logic for the hourly production analytics view.
+
+src/features/analytics/views/hourly-production-view.jsx
+  UI for the hourly production analytics page (monitoring dashboard).
+
+--- products: Product Management ---
+
+src/features/products/models/product.model.js
+  Product data model.
+
+src/features/products/services/products.service.js
+  API service for product CRUD operations.
+
+src/features/products/view-models/use-products-view-model.js
+  View logic for the products management page.
+
+src/features/products/views/products-view.jsx
+  UI for the products page.
+
+--- users: User Management ---
+
+src/features/users/models/user.model.js
+  User data model.
+
+src/features/users/services/user.service.js
+  API service for user CRUD operations.
+
+src/features/users/view-models/use-users-view-model.js
+  View logic for the users management page.
+
+src/features/users/views/users-view.jsx
+  UI for the users page.
+--------------------------------------------------------------------------------
+SRC/LIB - LOW-LEVEL UTILITIES
+--------------------------------------------------------------------------------
+
+src/lib/axios/client.js
+  Configured Axios instance with baseURL from config/constants.js.
+  Automatically attaches Bearer token from localStorage to every request.
+
+src/lib/axios/interceptors.js
+  Axios request/response interceptor setup (currently pass-through).
+
+src/lib/jwt.js
+  Utility to decode JWT payload in the browser without signature verification.
+  Used for reading user role from the token for UI display purposes.
+
+--------------------------------------------------------------------------------
+SRC/PROVIDERS - REACT PROVIDERS
+--------------------------------------------------------------------------------
+
+src/providers/query-provider.jsx
+  TanStack Query (React Query) provider. Configures default query options
+  (staleTime: 60s, refetchOnWindowFocus: false). Wraps the entire app in
+  src/app/layout.js.
+
+--------------------------------------------------------------------------------
+ARCHITECTURE OVERVIEW
+--------------------------------------------------------------------------------
+
+Pattern: Feature-based organization with separation of concerns:
+
+  views/      -> UI components (React components, JSX)
+  view-models -> Business logic (hooks, form handling, data fetching)
+  services    -> API layer (Axios calls, endpoint construction)
+  models      -> Data normalization/validation (Zod schemas, response mappers)
+  store       -> Global state (Zustand stores, only in auth)
+
+State Management:
+  - Zustand: Authentication state (useAuthStore)
+  - TanStack Query: Server state caching (QueryProvider)
+  - React Hook Form + Zod: Form validation
+
+Styling: Tailwind CSS v4 with shadcn/ui component patterns
+Icons: Lucide React
+Date formatting: date-fns with Asia/Kolkata timezone
+Charts: Recharts
+
+--------------------------------------------------------------------------------
+END OF DOCUMENT
+================================================================================

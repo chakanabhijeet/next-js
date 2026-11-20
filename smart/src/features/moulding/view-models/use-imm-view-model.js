@@ -1,40 +1,39 @@
-
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { immProductionService } from "@/features/moulding/services/imm-production.service";
+
 import { normalizeImmResponse } from "@/features/moulding/models/imm-production.model";
 import { normalizeImmLogResponse } from "@/features/moulding/models/imm-log.model";
 
-export const IMM_MACHINES = [
-  {
-    key: "milacron2700",
-    title: "2700 Ton Milacron",
-    tonnage: "2700 T",
-    deviceId: "05@xoom",
-    machineId: "2700 Milacron",
-  },
-];
+import { IMM_MACHINES } from "@/features/moulding/config/imm-machines.config";
+
+// Keep this export so existing components importing from this file continue working.
+export { IMM_MACHINES } from "@/features/moulding/config/imm-machines.config";
 
 const REFRESH_INTERVAL_MS = 15_000;
 
-export function useImmViewModel() {
-  const [machines, setMachines] = useState(() =>
-    Object.fromEntries(
-      IMM_MACHINES.map((machine) => [
-        machine.key,
-        {
-          data: null,
-          error: null,
-          loading: true,
-          logStats: null,
-          logError: null,
-          logLoading: true,
-        },
-      ])
-    )
+// Create initial state for every configured machine.
+function createInitialMachineState() {
+  return Object.fromEntries(
+    IMM_MACHINES.map((machine) => [
+      machine.key,
+      {
+        data: null,
+        error: null,
+        loading: true,
+
+        logStats: null,
+        logError: null,
+        logLoading: true,
+      },
+    ])
   );
+}
+
+export function useImmViewModel() {
+  const [machines, setMachines] = useState(createInitialMachineState);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -58,6 +57,7 @@ export function useImmViewModel() {
             machineId: config.machineId,
           };
 
+          // Fetch both APIs independently for each machine.
           const [productionResult, logResult] =
             await Promise.allSettled([
               immProductionService.getShiftwise(payload),
@@ -68,13 +68,15 @@ export function useImmViewModel() {
 
           setMachines((current) => {
             const previous = current[config.key] ?? {};
+
             const next = { ...previous };
 
-            // Production metrics API
+            // Production metrics API.
             if (productionResult.status === "fulfilled") {
               next.data = normalizeImmResponse(
                 productionResult.value
               );
+
               next.error = null;
             } else {
               next.error =
@@ -84,11 +86,12 @@ export function useImmViewModel() {
 
             next.loading = false;
 
-            // Last 10 shots API
+            // Last 10 shots API.
             if (logResult.status === "fulfilled") {
               next.logStats = normalizeImmLogResponse(
                 logResult.value
               );
+
               next.logError = null;
             } else {
               next.logError =

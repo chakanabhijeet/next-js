@@ -21,7 +21,6 @@ function toIso(value) {
     ? null
     : date.toISOString();
 }
-
 function toOee(data) {
   return {
     availability: toNumber(data?.availability),
@@ -68,3 +67,4 @@ export function normalizeImmResponse(data) {
     ),
   };
 }
+
