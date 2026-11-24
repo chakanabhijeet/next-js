@@ -1,11 +1,17 @@
-
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { useProductionViewModel } from "@/features/monitoring/view-models/use-production-view-model";
 import {
-  CalendarDays, // [DATE-PICKER]
+  DEVICES,
+  GROUPS,
+  MACHINES,
+  getMachinesByGroup,
+  getMachinesByDevice,
+} from "@/features/monitoring/config/machines.config";
+import {
+  CalendarDays,
   RefreshCw,
   Factory,
   Clock3,
@@ -14,33 +20,65 @@ import {
   AlertCircle,
 } from "lucide-react";
 
-// A machine is "running" if its last production event is newer than this.
-// Fixed 15 minutes for EVERY machine (independent of cycle time).
 const MACHINE_TIMEOUT_MS = 15 * 60 * 1000;
-// Allow small clock differences between server and browser.
 const CLOCK_SKEW_TOLERANCE_MS = 60 * 1000;
-// How often the screen re-checks status even if no new data arrives.
 const STATUS_TICK_MS = 15 * 1000;
 
-// Shift Production and Day Production are displayed as (actual value + offset).
-// e.g. actual 50 -> shows 51. Set to 0 to show the real value.
 const DAY_PRODUCTION_OFFSET = 1;
 const SHIFT_PRODUCTION_OFFSET = 1;
-
-// [DATE-PICKER] Offset for PAST dates (final counts). 0 = show the API value
-// exactly. Set to 1 if you also want +1 on past days.
 const HISTORY_PRODUCTION_OFFSET = 0;
 
-// [DATE-PICKER] Today's date in India as "YYYY-MM-DD".
-function getTodayIST() {
-  return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+/* LIVE CLOCK */
+
+let tickNow = Date.now();
+let tickTimer = null;
+const tickListeners = new Set();
+
+function subscribeToTick(listener) {
+  tickListeners.add(listener);
+
+  if (!tickTimer) {
+    tickNow = Date.now();
+
+    tickTimer = setInterval(() => {
+      tickNow = Date.now();
+      tickListeners.forEach((notify) => notify());
+    }, 1000);
+  }
+
+  return () => {
+    tickListeners.delete(listener);
+
+    if (tickListeners.size === 0 && tickTimer) {
+      clearInterval(tickTimer);
+      tickTimer = null;
+    }
+  };
 }
 
-// [DATE-PICKER] "2026-10-16" -> "16 Oct 2026"
+function getTickSnapshot() {
+  return tickNow;
+}
+
+function useLiveNow() {
+  return useSyncExternalStore(
+    subscribeToTick,
+    getTickSnapshot,
+    getTickSnapshot
+  );
+}
+
+function getTodayIST() {
+  return new Date().toLocaleDateString("en-CA", {
+    timeZone: "Asia/Kolkata",
+  });
+}
+
 function formatDateLabel(dateString) {
   if (!dateString) return "—";
 
   const date = new Date(`${dateString}T00:00:00+05:30`);
+
   if (Number.isNaN(date.getTime())) return dateString;
 
   return date.toLocaleDateString("en-IN", {
@@ -85,22 +123,41 @@ function formatAgo(production, now) {
 
   if (!date) return null;
 
-  const seconds = Math.max(0, Math.floor((now - date.getTime()) / 1000));
+  const total = Math.max(
+    0,
+    Math.floor((now - date.getTime()) / 1000)
+  );
 
-  if (seconds < 60) return `${seconds} sec ago`;
+  if (total < 60) return `${total} sec ago`;
 
-  const minutes = Math.floor(seconds / 60);
+  const minutes = Math.floor(total / 60);
 
-  if (minutes < 60) return `${minutes} min ago`;
+  if (minutes < 60) {
+    return `${minutes} min ${String(total % 60).padStart(2, "0")} sec ago`;
+  }
 
   const hours = Math.floor(minutes / 60);
 
-  if (hours < 24) return `${hours} hr ${minutes % 60} min ago`;
+  if (hours < 24) {
+    return `${hours} hr ${minutes % 60} min ago`;
+  }
 
   return `${Math.floor(hours / 24)} d ${hours % 24} hr ago`;
 }
 
-// Evaluated separately for every machine card.
+function LiveAgo({ production, className = "", wrap = false }) {
+  const now = useLiveNow();
+  const text = formatAgo(production, now);
+
+  if (!text) return null;
+
+  return (
+    <span className={`tabular-nums ${className}`}>
+      {wrap ? ` (${text})` : text}
+    </span>
+  );
+}
+
 function getMachineStatus(machine, now) {
   const production = machine?.data;
 
@@ -108,20 +165,16 @@ function getMachineStatus(machine, now) {
     return machine?.error ? "error" : "loading";
   }
 
-  // [DATE-PICKER] Past date: no running / stopped logic at all.
   if (production.historical) return "history";
 
   const timestamp = parseApiTimestamp(getMachineTimestamp(production));
 
-  // No valid timestamp = treat as stopped (red)
   if (!timestamp) return "stopped";
 
   const age = now - timestamp.getTime();
 
-  // Timestamp meaningfully in the future = real clock problem
   if (age < -CLOCK_SKEW_TOLERANCE_MS) return "time-error";
 
-  // No update for more than 15 minutes = stopped (red)
   return age <= MACHINE_TIMEOUT_MS ? "running" : "stopped";
 }
 
@@ -150,50 +203,83 @@ function formatDuration(seconds) {
   return `${remainingSeconds} sec`;
 }
 
+/* STATUS BADGE */
+
 function MachineStatus({ status }) {
-  const running = status === "running";
-  const loading = status === "loading";
-  const timeError = status === "time-error";
-  const apiError = status === "error";
+  if (status === "running") {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-emerald-500/20 px-2.5 py-1 text-[10px] font-bold text-emerald-300 sm:text-[11px]">
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+        RUNNING
+      </span>
+    );
+  }
 
-  let label = "MACHINE STOPPED";
-  let colors = "bg-rose-100 text-rose-700";
-  let dot = "bg-rose-500";
+  if (status === "loading") {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-bold text-white/70 sm:text-[11px]">
+        <span className="h-1.5 w-1.5 rounded-full bg-white/50" />
+        LOADING
+      </span>
+    );
+  }
 
-  if (running) {
-    label = "RUNNING";
-    colors = "bg-emerald-50 text-emerald-700";
-    dot = "bg-emerald-500";
-  } else if (loading) {
-    label = "LOADING";
-    colors = "bg-slate-100 text-slate-600";
-    dot = "bg-slate-400";
-  } else if (status === "history") {
-    // [DATE-PICKER]
-    label = "HISTORY";
-    colors = "bg-indigo-50 text-indigo-700";
-    dot = "bg-indigo-500";
-  } else if (apiError) {
-    label = "API ERROR";
-    colors = "bg-amber-100 text-amber-800";
-    dot = "bg-amber-500";
-  } else if (timeError) {
-    label = "CHECK TIME";
-    colors = "bg-amber-100 text-amber-800";
-    dot = "bg-amber-500";
+  if (status === "history") {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-indigo-400/20 px-2.5 py-1 text-[10px] font-bold text-indigo-200 sm:text-[11px]">
+        <span className="h-1.5 w-1.5 rounded-full bg-indigo-300" />
+        HISTORY
+      </span>
+    );
+  }
+
+  if (status === "error" || status === "time-error") {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-amber-400/20 px-2.5 py-1 text-[10px] font-bold text-amber-200 sm:text-[11px]">
+        <span className="h-1.5 w-1.5 rounded-full bg-amber-300" />
+        {status === "time-error" ? "CHECK TIME" : "API ERROR"}
+      </span>
+    );
   }
 
   return (
-    <span
-      className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-bold sm:text-[11px] ${colors}`}
-    >
-      <span className={`h-2 w-2 rounded-full ${dot}`} />
-      {label}
+    <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-rose-600 px-2.5 py-1 text-[10px] font-bold text-white sm:text-[11px]">
+      <span className="h-1.5 w-1.5 rounded-full bg-rose-200" />
+      MACHINE STOPPED
     </span>
   );
 }
 
-/* Only cards with showVariant=true display the variant row. */
+/* STOPPED ALERT STRIP */
+
+function StoppedAlert({ production }) {
+  return (
+    <div
+      role="alert"
+      className="flex items-center gap-2.5 border-b border-rose-100 bg-rose-50 px-4 py-2 dark:border-rose-400/30 dark:bg-rose-900/50"
+    >
+      <AlertCircle className="h-3.5 w-3.5 shrink-0 text-rose-500 dark:text-rose-400" />
+
+      <div className="min-w-0 flex-1">
+        <span className="text-[11px] font-bold uppercase tracking-wide text-rose-600 dark:text-rose-400">
+          Machine stopped
+        </span>
+
+        <span className="ml-2 text-[11px] text-rose-500/80 dark:text-rose-400/70">
+          Last update{" "}
+          <span className="font-semibold">
+            {formatLastUpdate(production)}
+          </span>
+          {" · "}
+          <LiveAgo production={production} className="font-semibold" />
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/* VARIANT ROW */
+
 function MachineIdentity({ production, showVariant = false }) {
   if (!showVariant) return null;
 
@@ -211,40 +297,120 @@ function MachineIdentity({ production, showVariant = false }) {
       : String(variant).trim();
 
   return (
-    <div className="border-b border-slate-100 px-4 py-3">
-      <p className="break-words text-sm font-bold text-slate-900 sm:text-base">
-        Variant: {variantLabel}
+    <div className="border-b border-slate-100 px-4 py-3 dark:border-slate-800/60">
+      <p className="text-sm font-bold text-slate-800 dark:text-slate-200">
+        Variant:{" "}
+        <span className="text-blue-700 dark:text-white">
+          {variantLabel}
+        </span>
       </p>
     </div>
   );
 }
 
-function MetricRow({ label, value, stopped, highlight = false }) {
+/* METRIC ROW */
+
+function MetricRow({
+  label,
+  value,
+  highlight = false,
+  stopped = false,
+}) {
   return (
     <div
-      className={`flex min-h-[48px] items-center justify-between gap-3 border-b px-4 py-3 ${
-        stopped ? "border-rose-200" : "border-slate-100"
+      className={`flex min-h-[44px] items-center justify-between gap-3 border-b px-4 py-2.5 last:border-b-0 ${
+        stopped
+          ? "border-rose-200 dark:border-rose-800/70"
+          : "border-slate-100 dark:border-slate-700/70"
       }`}
     >
       <span
-        className={`min-w-0 break-words text-sm ${
-          stopped ? "text-rose-700" : "text-slate-500"
+        className={`text-sm ${
+          stopped
+            ? "text-rose-800 dark:text-rose-100"
+            : "text-slate-500 dark:text-white"
         }`}
       >
         {label}
       </span>
+
       <span
-        className={`min-w-0 break-words text-right font-semibold ${
+        className={
           highlight
-            ? `text-base sm:text-lg ${stopped ? "text-rose-700" : "text-violet-600"}`
-            : `text-sm ${stopped ? "text-rose-800" : "text-slate-800"}`
-        }`}
+            ? `text-right text-lg font-bold ${
+                stopped
+                  ? "text-rose-600 dark:text-white"
+                  : "text-blue-700 dark:text-white"
+              }`
+            : `text-right text-sm font-semibold ${
+                stopped
+                  ? "text-rose-900 dark:text-white"
+                  : "text-slate-700 dark:text-white"
+              }`
+        }
       >
         {value ?? "—"}
       </span>
     </div>
   );
 }
+
+/* LAST UPDATE FOOTER */
+
+function LastUpdateRow({ production, status }) {
+  const stopped = status === "stopped";
+
+  return (
+    <div
+      className={`mx-3 mb-3 mt-2 flex min-h-[42px] flex-col gap-0.5 rounded-xl px-3 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-2 ${
+        stopped
+          ? "bg-rose-100 dark:bg-rose-900/70"
+          : "bg-blue-50 dark:bg-blue-500/10"
+      }`}
+    >
+      <span
+        className={`flex shrink-0 items-center gap-1.5 text-xs font-medium ${
+          stopped
+            ? "text-rose-800 dark:text-rose-100"
+            : "text-blue-700 dark:text-white"
+        }`}
+      >
+        <Clock3 className="h-3.5 w-3.5" />
+        Last Update
+
+        {status === "running" && (
+          <span className="relative ml-0.5 flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+          </span>
+        )}
+      </span>
+
+      <span className="text-left sm:text-right">
+        <span
+          className={`block text-xs font-bold ${
+            stopped
+              ? "text-rose-950 dark:text-white"
+              : "text-blue-900 dark:text-white"
+          }`}
+        >
+          {formatLastUpdate(production)}
+        </span>
+
+        <LiveAgo
+          production={production}
+          className={`text-[11px] font-semibold ${
+            stopped
+              ? "text-rose-500 dark:text-rose-400"
+              : "text-blue-600 dark:text-blue-400"
+          }`}
+        />
+      </span>
+    </div>
+  );
+}
+
+/* MACHINE CARD */
 
 function MachineCard({
   title,
@@ -257,36 +423,39 @@ function MachineCard({
   const production = machine?.data ?? null;
   const error = machine?.error ?? null;
   const status = getMachineStatus(machine, now);
-  const stopped = status === "stopped" || status === "error";
-  const historical = status === "history"; // [DATE-PICKER]
-  const ago = production ? formatAgo(production, now) : null;
+  const stopped = status === "stopped";
+  const historical = status === "history";
 
   return (
     <section
-      className={`min-w-0 overflow-hidden rounded-2xl border shadow-sm ${
-        stopped ? "border-rose-300 bg-rose-50" : "border-slate-200 bg-white"
+      className={`min-w-0 overflow-hidden rounded-2xl border shadow-md ${
+        stopped
+          ? "border-rose-300 bg-rose-50 shadow-rose-900/10 dark:border-rose-700 dark:bg-rose-950 dark:shadow-black/20"
+          : "border-slate-200 bg-white shadow-slate-900/5 dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/20"
       }`}
     >
       <header
-        className={`flex min-h-[54px] flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between ${
-          stopped ? "bg-rose-700" : "bg-indigo-600"
+        className={`flex min-h-[52px] flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between ${
+          stopped ? "bg-rose-700 dark:bg-rose-800" : "bg-blue-700"
         }`}
       >
-        <div className="flex min-w-0 items-center gap-2">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/15">
-            <Factory className="h-4 w-4 text-white" />
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/15">
+            <Factory className="h-3.5 w-3.5 text-white" />
           </div>
-          <h2 className="min-w-0 text-sm font-bold leading-tight text-white sm:text-base">
+
+          <h2 className="min-w-0 truncate text-sm font-semibold leading-tight text-white sm:text-[15px]">
             {title}
           </h2>
         </div>
 
         <div className="flex shrink-0 flex-wrap items-center gap-2 self-start sm:self-auto">
           {badge && (
-            <span className="rounded-md bg-white/20 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-white">
+            <span className="rounded-md bg-white/20 px-2 py-0.5 text-[10px] font-bold tracking-wide text-white">
               {badge}
             </span>
           )}
+
           <MachineStatus status={status} />
         </div>
       </header>
@@ -294,16 +463,20 @@ function MachineCard({
       {!production ? (
         <div className="p-4">
           {status === "loading" ? (
-            <div className="flex min-h-20 items-center justify-center gap-2 text-sm text-slate-500">
+            <div className="flex min-h-20 items-center justify-center gap-2 text-sm text-slate-400">
               <RefreshCw className="h-4 w-4 animate-spin" />
-              Loading...
+              Loading…
             </div>
           ) : (
-            <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+
               <div className="min-w-0">
-                <p className="font-semibold">Unable to load machine data</p>
-                <p className="mt-1 break-words">
+                <p className="font-semibold">
+                  Unable to load machine data
+                </p>
+
+                <p className="mt-1 break-words text-xs">
                   {typeof error === "string"
                     ? error
                     : error?.message || "No production response received."}
@@ -315,122 +488,103 @@ function MachineCard({
       ) : (
         <>
           {status === "time-error" && (
-            <div className="m-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            <div className="mx-3 mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
               The API timestamp is in the future. Check the backend clock.
             </div>
           )}
 
-          {status === "stopped" && (
-            <div className="m-3 break-words rounded-lg border border-rose-200 bg-rose-100 p-3 text-sm text-rose-800">
-              Machine stopped from {formatLastUpdate(production)}
-              {ago ? ` (${ago})` : ""}
-            </div>
-          )}
+          {stopped && <StoppedAlert production={production} />}
 
-          <MachineIdentity production={production} showVariant={showVariant} />
+          <MachineIdentity
+            production={production}
+            showVariant={showVariant}
+          />
 
-          {/* [DATE-PICKER] PAST DATE: day total + each shift + the date */}
           {historical ? (
             <>
               <MetricRow
+                stopped={stopped}
                 label="Day Production"
                 value={(
                   Number(production.dayProduction ?? 0) +
                   HISTORY_PRODUCTION_OFFSET
                 ).toLocaleString("en-IN")}
                 highlight
-                stopped={false}
               />
 
               {(production.shifts ?? []).map((shift) => (
                 <MetricRow
+                  stopped={stopped}
                   key={shift.name}
                   label={shift.name}
                   value={(
                     Number(shift.count ?? 0) + HISTORY_PRODUCTION_OFFSET
                   ).toLocaleString("en-IN")}
-                  stopped={false}
                 />
               ))}
 
-              {/* [DATE-PICKER] day with zero production on every line */}
               {Number(production.dayProduction ?? 0) === 0 &&
                 (production.shifts ?? []).every(
-                  (shift) => Number(shift.count ?? 0) === 0
+                  (s) => Number(s.count ?? 0) === 0
                 ) && (
-                  <div className="mx-3 mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+                  <div className="mx-3 my-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400">
                     No production recorded for this date.
                   </div>
                 )}
 
-              <div className="mx-3 mt-3 flex min-h-[46px] items-center justify-between gap-2 rounded-lg bg-indigo-50 px-3 py-2">
-                <span className="flex shrink-0 items-center gap-2 text-sm text-indigo-700">
-                  <CalendarDays className="h-4 w-4" />
+              <div className="mx-3 mb-3 mt-2 flex min-h-[42px] items-center justify-between gap-2 rounded-xl bg-indigo-50 px-3 py-2 dark:bg-indigo-500/10">
+                <span className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-indigo-600 dark:text-indigo-300">
+                  <CalendarDays className="h-3.5 w-3.5" />
                   Data for
                 </span>
-                <span className="min-w-0 break-words text-right text-xs font-bold text-indigo-800 sm:text-sm">
+
+                <span className="text-xs font-bold text-indigo-800 dark:text-indigo-200">
                   {formatDateLabel(production.date)}
                 </span>
               </div>
             </>
           ) : (
             <>
-          <MetricRow label="Shift" value={production.shiftName} stopped={stopped} />
-          <MetricRow
-            label="Shift Production"
-            value={(
-              Number(production.productionCount ?? 0) + SHIFT_PRODUCTION_OFFSET
-            ).toLocaleString("en-IN")}
-            highlight
-            stopped={stopped}
-          />
-          <MetricRow
-            label="Day Production"
-            value={(
-              Number(production.dayProduction ?? 0) + DAY_PRODUCTION_OFFSET
-            ).toLocaleString("en-IN")}
-            highlight
-            stopped={stopped}
-          />
+              <MetricRow
+                label="Shift"
+                value={production.shiftName}
+                stopped={stopped}
+              />
 
-          <MetricRow
-            label="Cycle Time"
-            value={formatDuration(production.cycleTimeSec)}
-            stopped={stopped}
-          />
+              <MetricRow
+                stopped={stopped}
+                label="Shift Production"
+                value={(
+                  Number(production.productionCount ?? 0) +
+                  SHIFT_PRODUCTION_OFFSET
+                ).toLocaleString("en-IN")}
+                highlight
+              />
 
-          <div
-            className={`mx-3 mt-3 flex min-h-[46px] flex-col gap-1 rounded-lg px-3 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-2 ${
-              stopped ? "bg-rose-200/80" : "bg-violet-50"
-            }`}
-          >
-            <span
-              className={`flex shrink-0 items-center gap-2 text-sm ${
-                stopped ? "text-rose-800" : "text-violet-700"
-              }`}
-            >
-              <Clock3 className="h-4 w-4" />
-              Last Update
-            </span>
-            <span
-              className={`min-w-0 break-words text-left text-xs font-bold sm:text-right ${
-                stopped ? "text-rose-800" : "text-violet-800"
-              }`}
-            >
-              {formatLastUpdate(production)}
-              {ago && (
-                <span className="block font-medium opacity-80">{ago}</span>
-              )}
-            </span>
-          </div>
+              <MetricRow
+                stopped={stopped}
+                label="Day Production"
+                value={(
+                  Number(production.dayProduction ?? 0) +
+                  DAY_PRODUCTION_OFFSET
+                ).toLocaleString("en-IN")}
+                highlight
+              />
 
+              <MetricRow
+                stopped={stopped}
+                label="Cycle Time"
+                value={formatDuration(production.cycleTimeSec)}
+              />
+
+              <LastUpdateRow production={production} status={status} />
             </>
           )}
 
-          <div className="pb-3" />
-
           {isRefreshing && (
-            <p className="px-4 pb-3 text-xs text-slate-400">Refreshing...</p>
+            <p className="px-4 pb-2 text-[11px] text-slate-400">
+              Refreshing…
+            </p>
           )}
         </>
       )}
@@ -438,40 +592,32 @@ function MachineCard({
   );
 }
 
-function AssemblyGroup({
-  rh,
-  lh,
-  rhTitle = "RH Assembly",
-  lhTitle = "LH Assembly",
-  isRefreshing,
-  now,
-}) {
+/* ASSEMBLY GROUP */
+
+function AssemblyGroup({ items, isRefreshing, now }) {
   return (
-    <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+    <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
       <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
-        <MachineCard
-          title={rhTitle}
-          machine={rh}
-          isRefreshing={isRefreshing}
-          now={now}
-        />
-        <MachineCard
-          title={lhTitle}
-          machine={lh}
-          isRefreshing={isRefreshing}
-          now={now}
-        />
+        {items.map((item) => (
+          <MachineCard
+            key={item.key}
+            title={item.title}
+            badge={item.badge}
+            machine={item.machine}
+            isRefreshing={isRefreshing}
+            now={now}
+          />
+        ))}
       </div>
     </section>
   );
 }
 
-// One common card. Machines are grouped into labelled sections
-// (HIGH together, LOW together) for easier reading.
-// Only cards inside this group show the Variant row.
+/* VARIANT GROUP */
+
 function VariantGroup({ sections, isRefreshing, now }) {
   return (
-    <section className="min-w-0 space-y-5 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+    <section className="min-w-0 space-y-5 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
       {sections.map((section) => (
         <div key={section.label} className="min-w-0">
           <div className="mb-3 flex flex-wrap items-center gap-3 px-1">
@@ -480,13 +626,14 @@ function VariantGroup({ sections, isRefreshing, now }) {
             >
               {section.label}
             </span>
-            <div className="hidden h-px flex-1 bg-slate-200 sm:block" />
+
+            <div className="hidden h-px flex-1 bg-slate-100 dark:bg-slate-800 sm:block" />
           </div>
 
           <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
             {section.items.map((item) => (
               <MachineCard
-                key={`${item.title}-${item.badge}`}
+                key={item.key}
                 title={item.title}
                 badge={item.badge}
                 machine={item.machine}
@@ -502,27 +649,28 @@ function VariantGroup({ sections, isRefreshing, now }) {
   );
 }
 
+/* PAGE */
+
 export default function DashboardPage() {
-  // [DATE-PICKER] "" = today (live). Otherwise a past date "YYYY-MM-DD".
   const [selectedDate, setSelectedDate] = useState("");
   const [today, setToday] = useState("");
 
   useEffect(() => {
     setToday(getTodayIST());
+
     const id = setInterval(() => setToday(getTodayIST()), 60 * 1000);
+
     return () => clearInterval(id);
   }, []);
 
   const isHistory = selectedDate !== "" && selectedDate !== today;
 
-  // One view model: live data for today, that day's data for a past date.
   const { machines, isRefreshing, refresh, wheelArchTotal } =
     useProductionViewModel(isHistory ? selectedDate : null);
 
   const handleDateChange = (event) => {
     const value = event.target.value;
 
-    // Empty, today or a future date -> go back to live data.
     if (!value || !today || value >= today) {
       setSelectedDate("");
       return;
@@ -531,34 +679,54 @@ export default function DashboardPage() {
     setSelectedDate(value);
   };
 
-  // Re-evaluate running/stopped regularly, even when no new data arrives
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), STATUS_TICK_MS);
+
     return () => clearInterval(id);
   }, []);
 
-  const aero = machines?.aeroDeflector;
-  const rh = machines?.rh;
-  const lh = machines?.lh;
-  const rhHigh = machines?.rhHigh;
-  const rhLow = machines?.rhLow;
-  const lhHigh = machines?.lhHigh;
-  const lhLow = machines?.lhLow;
+  const buildItems = (groupId) =>
+    getMachinesByGroup(groupId).map((config) => ({
+      key: config.key,
+      title: config.title,
+      badge: config.badge,
+      showVariant: config.showVariant ?? false,
+      machine: machines?.[config.key],
+    }));
 
-  const allMachines = [aero, rh, lh, rhHigh, rhLow, lhHigh, lhLow];
+  const aeroItems = buildItems(GROUPS.AERO.id);
+  const doorCladdingItems = buildItems(GROUPS.DOOR_CLADDING.id);
 
-  // [DATE-PICKER] Past date: do the 4 Wheel Arch cards add up to the device total?
-  const variantMachines = [rhHigh, lhHigh, rhLow, lhLow];
+  const variantSections = [
+    GROUPS.WHEEL_ARCH_HIGH,
+    GROUPS.WHEEL_ARCH_LOW,
+  ].map((group) => ({
+    label: group.label,
+    badgeClass: group.badgeClass,
+    items: buildItems(group.id),
+  }));
+
+  const allMachines = MACHINES.map((config) => machines?.[config.key]);
+
+  const variantMachines = getMachinesByDevice(DEVICES.WHEEL_ARCH).map(
+    (config) => machines?.[config.key]
+  );
+
   const variantsReady =
-    isHistory && variantMachines.every((machine) => machine?.data?.historical);
+    isHistory &&
+    variantMachines.every((machine) => machine?.data?.historical);
+
   const assignedTotal = variantMachines.reduce(
     (sum, machine) => sum + Number(machine?.data?.dayProduction ?? 0),
     0
   );
+
   const unassignedTotal =
-    variantsReady && wheelArchTotal != null ? wheelArchTotal - assignedTotal : 0;
+    variantsReady && wheelArchTotal != null
+      ? wheelArchTotal - assignedTotal
+      : 0;
 
   const runningCount = allMachines.filter(
     (machine) => getMachineStatus(machine, now) === "running"
@@ -566,54 +734,69 @@ export default function DashboardPage() {
 
   return (
     <DashboardLayout>
-      <main className="min-h-screen min-w-0 overflow-x-hidden bg-slate-50 p-3 sm:p-6">
+      <main className="assembly-dashboard min-h-screen min-w-0 overflow-x-hidden bg-slate-50 p-3 dark:bg-slate-950 sm:p-6">
+        {/* INSTANT THEME SWITCHING */}
+        <style jsx global>{`
+          .assembly-dashboard,
+          .assembly-dashboard *,
+          .assembly-dashboard *::before,
+          .assembly-dashboard *::after {
+            transition: none !important;
+          }
+        `}</style>
+
         <div className="mx-auto w-full max-w-[1800px] min-w-0">
-          <header className="mb-5 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:mb-6 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+          {/* DASHBOARD HEADER */}
+          <header className="mb-5 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:mb-6 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-4">
             <div className="flex min-w-0 items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-600 sm:h-12 sm:w-12">
-                <Factory className="h-5 w-5 text-white sm:h-6 sm:w-6" />
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-700 sm:h-11 sm:w-11">
+                <Factory className="h-5 w-5 text-white" />
               </div>
+
               <div className="min-w-0">
-                <h1 className="truncate text-xl font-bold text-slate-900 sm:text-2xl">
+                <h1 className="truncate text-lg font-bold text-slate-900 dark:text-white sm:text-xl">
                   APIPL
                 </h1>
-                <p className="text-xs text-slate-500 sm:text-sm">
+
+                <p className="text-xs text-slate-400 dark:text-slate-500">
                   Assembly Production Dashboard
                 </p>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-              {/* [DATE-PICKER] live count only makes sense for today */}
+            {/* HEADER CONTROLS */}
+            <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-2.5">
               {isHistory ? (
-                <div className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 sm:text-sm">
-                  <CalendarDays className="h-4 w-4 shrink-0" />
+                <div className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-300">
+                  <CalendarDays className="h-3.5 w-3.5 shrink-0" />
+
                   <span className="whitespace-nowrap">
                     Viewing {formatDateLabel(selectedDate)}
                   </span>
                 </div>
               ) : (
-                <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 sm:text-sm">
+                <div className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:border-slate-700 dark:text-white">
                   {runningCount > 0 ? (
-                    <Wifi className="h-4 w-4 shrink-0 text-emerald-600" />
+                    <Wifi className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
                   ) : (
-                    <WifiOff className="h-4 w-4 shrink-0 text-rose-600" />
+                    <WifiOff className="h-3.5 w-3.5 shrink-0 text-rose-500" />
                   )}
+
                   <span className="whitespace-nowrap">
                     {runningCount}/{allMachines.length} Running
                   </span>
                 </div>
               )}
 
-              {/* [DATE-PICKER] date picker */}
-              <label className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 sm:text-sm">
-                <CalendarDays className="h-4 w-4 shrink-0 text-indigo-600" />
+              <label className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-white">
+                <CalendarDays className="h-3.5 w-3.5 shrink-0 text-blue-600" />
+
                 <input
                   type="date"
                   value={selectedDate || today}
                   max={today || undefined}
                   onChange={handleDateChange}
-                  className="bg-transparent text-xs font-semibold text-slate-700 outline-none sm:text-sm"
+                  className="w-[115px] bg-transparent text-xs font-semibold text-slate-600 outline-none dark:text-white dark:[color-scheme:dark]"
                   aria-label="Select production date"
                 />
               </label>
@@ -622,7 +805,7 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={() => setSelectedDate("")}
-                  className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700 sm:text-sm"
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-800"
                 >
                   Back to Today
                 </button>
@@ -632,97 +815,64 @@ export default function DashboardPage() {
                 type="button"
                 onClick={refresh}
                 disabled={isRefreshing}
-                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 sm:text-sm"
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800"
               >
                 <RefreshCw
-                  className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
+                  className={`h-3.5 w-3.5 ${
+                    isRefreshing ? "animate-spin" : ""
+                  }`}
                 />
+
                 Refresh
               </button>
             </div>
           </header>
 
-          <div className="mb-4">
-            <h2 className="text-base font-bold text-slate-800 sm:text-lg">
+          {/* ASSEMBLY OVERVIEW */}
+          <div className="mb-3 px-0.5">
+            <h2 className="text-sm font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 sm:text-[13px]">
               Assembly Overview
             </h2>
-            <p className="mt-1 text-xs text-slate-500 sm:text-sm">
-              {isHistory
-                ? `Production data for ${formatDateLabel(selectedDate)}.`
-                : "Live production metrics from your production API."}
-            </p>
           </div>
 
           <div className="grid grid-cols-1 items-start gap-4 sm:gap-5 2xl:grid-cols-3">
-            <MachineCard
-              title="Aero Deflector"
-              machine={aero}
-              isRefreshing={isRefreshing}
-              now={now}
-            />
+            {aeroItems.map((item) => (
+              <MachineCard
+                key={item.key}
+                title={item.title}
+                badge={item.badge}
+                machine={item.machine}
+                isRefreshing={isRefreshing}
+                now={now}
+              />
+            ))}
 
             <div className="min-w-0 2xl:col-span-2">
               <AssemblyGroup
-                rh={rh}
-                lh={lh}
-                rhTitle="W610 Rear Door Cladding RH"
-                lhTitle="W610 Rear Door Cladding LH"
+                items={doorCladdingItems}
                 isRefreshing={isRefreshing}
                 now={now}
               />
             </div>
           </div>
 
+          {/* VARIANT GROUP */}
           <div className="mt-4 min-w-0 sm:mt-5">
             <VariantGroup
-              sections={[
-                {
-                  label: "PACK C · HIGH VARIANT",
-                  badgeClass: "bg-indigo-50 text-indigo-700",
-                  items: [
-                    {
-                      title: "W610 Rear Wheel Arch Cladding RH",
-                      badge: "PACK C",
-                      machine: rhHigh,
-                      showVariant: true,
-                    },
-                    {
-                      title: "W610 Rear Wheel Arch Cladding LH",
-                      badge: "PACK C",
-                      machine: lhHigh,
-                      showVariant: true,
-                    },
-                  ],
-                },
-                {
-                  label: "PACK AB · LOW VARIANT",
-                  badgeClass: "bg-sky-50 text-sky-700",
-                  items: [
-                    {
-                      title: "W610 Rear Wheel Arch Cladding RH",
-                      badge: "PACK AB",
-                      machine: rhLow,
-                      showVariant: true,
-                    },
-                    {
-                      title: "W610 Rear Wheel Arch Cladding LH",
-                      badge: "PACK AB",
-                      machine: lhLow,
-                      showVariant: true,
-                    },
-                  ],
-                },
-              ]}
+              sections={variantSections}
               isRefreshing={isRefreshing}
               now={now}
             />
           </div>
 
-          {/* [DATE-PICKER] shown only when the Wheel Arch cards do not add up */}
+          {/* WHEEL ARCH TOTAL WARNING */}
           {unassignedTotal !== 0 && (
-            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-              <p className="font-semibold">Wheel Arch totals do not match</p>
-              <p className="mt-1">
+            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+              <p className="font-semibold">
+                Wheel Arch totals do not match
+              </p>
+
+              <p className="mt-1 text-xs leading-relaxed">
                 {unassignedTotal > 0
                   ? `The whole device total for ${formatDateLabel(
                       selectedDate
@@ -742,7 +892,8 @@ export default function DashboardPage() {
             </div>
           )}
 
-          <footer className="mt-6 border-t border-slate-200 py-4 text-center text-xs text-slate-400">
+          {/* FOOTER */}
+          <footer className="mt-6 border-t border-slate-100 py-4 text-center text-xs text-slate-400 dark:border-slate-800 dark:text-slate-500">
             ABHIJEET Smart Monitoring System
           </footer>
         </div>

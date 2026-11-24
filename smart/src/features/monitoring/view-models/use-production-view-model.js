@@ -1,60 +1,34 @@
-
-
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { productionService } from "@/features/monitoring/services/production.service";
 import { normalizeProductionResponse } from "@/features/monitoring/models/production.model";
+import {
+  DEVICES,
+  MACHINE_KEYS,
+} from "@/features/monitoring/config/machines.config";
 
-/* LIVE (today): existing assembly shift API */
-const LIVE_REQUESTS = {
-  aeroDeflector: () => productionService.getAssemblyShift(),
-  rh: () => productionService.getRHAssemblyShift(),
-  lh: () => productionService.getLHAssemblyShift(),
+/* LIVE (today): one request per machine in machines.config.js */
+const LIVE_REQUESTS = Object.fromEntries(
+  MACHINE_KEYS.map((key) => [key, () => productionService.getLiveProduction(key)])
+);
 
-  // Device 03@xoom: RH and LH, each with a HIGH and a LOW variant
-  rhHigh: () =>
-    productionService.getVariantAssemblyShift({
-      station: "RH",
-      variant: "HIGH",
-    }),
-  rhLow: () =>
-    productionService.getVariantAssemblyShift({
-      station: "RH",
-      variant: "LOW",
-    }),
-  lhHigh: () =>
-    productionService.getVariantAssemblyShift({
-      station: "LH",
-      variant: "HIGH",
-    }),
-  lhLow: () =>
-    productionService.getVariantAssemblyShift({
-      station: "LH",
-      variant: "LOW",
-    }),
-};
-
-/* PAST DATES: new proddata API (same machine keys) */
+/* PAST DATES: same machine keys, new proddata API */
 const HISTORY_REQUESTS = Object.fromEntries(
-  Object.keys(LIVE_REQUESTS).map((key) => [
+  MACHINE_KEYS.map((key) => [
     key,
     (date) => productionService.getProductionByDate(key, date),
   ])
 );
 
-// Device that runs the Wheel Arch machines (RH/LH x HIGH/LOW).
-const WHEEL_ARCH_DEVICE_ID = "03@xoom";
+// Device whose whole-day total is compared with its station/variant cards
+// on past dates (Wheel Arch: RH/LH x HIGH/LOW).
+const WHEEL_ARCH_DEVICE_ID = DEVICES.WHEEL_ARCH.id;
 
-const INITIAL_MACHINES = {
-  aeroDeflector: { data: null, error: null, loading: true },
-  rh: { data: null, error: null, loading: true },
-  lh: { data: null, error: null, loading: true },
-  rhHigh: { data: null, error: null, loading: true },
-  rhLow: { data: null, error: null, loading: true },
-  lhHigh: { data: null, error: null, loading: true },
-  lhLow: { data: null, error: null, loading: true },
-};
+// Every machine starts in the "loading" state.
+const INITIAL_MACHINES = Object.fromEntries(
+  MACHINE_KEYS.map((key) => [key, { data: null, error: null, loading: true }])
+);
 
 // Shows the backend's real error message instead of only "status code 400"
 function getErrorMessage(reason) {

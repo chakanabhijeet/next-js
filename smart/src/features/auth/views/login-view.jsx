@@ -175,7 +175,7 @@ export default function LoginView() {
 
             <div className="w-full max-w-[460px]">
 
-              <div className="rounded-[26px] border border-blue-100 bg-[#f9fbff] p-5 shadow-[0_30px_80px_rgba(0,0,0,.25)] sm:p-7 lg:p-8">
+              <div className="rounded-[26px] border border-blue-100 dark:border-slate-800 bg-[#f9fbff] dark:bg-slate-900 p-5 shadow-[0_30px_80px_rgba(0,0,0,.25)] sm:p-7 lg:p-8">
 
                 {/* Form logo */}
 
@@ -197,11 +197,11 @@ export default function LoginView() {
                       ABHIJEET
                     </p>
 
-                    <p className="mt-1 text-[17px] font-bold text-slate-800">
+                    <p className="mt-1 text-[17px] font-bold text-slate-800 dark:text-slate-100">
                       Smart Monitoring
                     </p>
 
-                    <p className="mt-1 text-[12px] font-medium text-slate-500">
+                    <p className="mt-1 text-[12px] font-medium text-slate-500 dark:text-slate-400">
                       Smart Monitoring System
                     </p>
 
@@ -217,11 +217,11 @@ export default function LoginView() {
                     Employee Portal
                   </p>
 
-                  <h2 className="text-[32px] font-bold leading-tight tracking-[-0.03em] text-slate-900 sm:text-[38px]">
+                  <h2 className="text-[32px] font-bold leading-tight tracking-[-0.03em] text-slate-900 dark:text-slate-100 sm:text-[38px]">
                     Welcome back
                   </h2>
 
-                  <p className="mt-3 text-[15px] leading-6 text-slate-600">
+                  <p className="mt-3 text-[15px] leading-6 text-slate-600 dark:text-slate-400">
                     Enter your employee credentials to access
                     your monitoring workspace.
                   </p>
@@ -239,7 +239,7 @@ export default function LoginView() {
 
                     <Label
                       htmlFor="employee_id"
-                      className="text-[15px] font-semibold text-slate-700"
+                      className="text-[15px] font-semibold text-slate-700 dark:text-slate-300"
                     >
                       Employee ID
                     </Label>
@@ -254,7 +254,7 @@ export default function LoginView() {
                         placeholder="Enter your employee ID"
                         autoComplete="username"
                         aria-invalid={!!errors.employee_id}
-                        className={`h-[54px] rounded-xl border-slate-200 bg-[#f3f7fd] pl-12 pr-4 text-[15px] font-medium text-slate-800 shadow-none placeholder:text-[15px] placeholder:text-slate-400 focus-visible:bg-white focus-visible:ring-4 focus-visible:ring-blue-100 ${
+                        className={`h-[54px] rounded-xl border-slate-200 dark:border-slate-800 bg-[#f3f7fd] dark:bg-slate-800 pl-12 pr-4 text-[15px] font-medium text-slate-800 dark:text-slate-100 shadow-none placeholder:text-[15px] placeholder:text-slate-400 dark:placeholder:text-slate-500 focus-visible:bg-white dark:focus-visible:bg-slate-800 focus-visible:ring-4 focus-visible:ring-blue-100 ${
                           errors.employee_id
                             ? "border-red-400"
                             : ""
@@ -278,7 +278,7 @@ export default function LoginView() {
 
                     <Label
                       htmlFor="password"
-                      className="text-[15px] font-semibold text-slate-700"
+                      className="text-[15px] font-semibold text-slate-700 dark:text-slate-300"
                     >
                       Password
                     </Label>
@@ -293,7 +293,7 @@ export default function LoginView() {
                         placeholder="Enter your password"
                         autoComplete="current-password"
                         aria-invalid={!!errors.password}
-                        className={`h-[54px] rounded-xl border-slate-200 bg-[#f3f7fd] pl-12 pr-12 text-[15px] font-medium text-slate-800 shadow-none placeholder:text-[15px] placeholder:text-slate-400 focus-visible:bg-white focus-visible:ring-4 focus-visible:ring-blue-100 ${
+                        className={`h-[54px] rounded-xl border-slate-200 dark:border-slate-800 bg-[#f3f7fd] dark:bg-slate-800 pl-12 pr-12 text-[15px] font-medium text-slate-800 dark:text-slate-100 shadow-none placeholder:text-[15px] placeholder:text-slate-400 dark:placeholder:text-slate-500 focus-visible:bg-white dark:focus-visible:bg-slate-800 focus-visible:ring-4 focus-visible:ring-blue-100 ${
                           errors.password
                             ? "border-red-400"
                             : ""
@@ -365,7 +365,7 @@ export default function LoginView() {
                   {serverError && (
                     <div
                       role="alert"
-                      className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-[14px] leading-5 text-red-600"
+                      className="rounded-xl border border-red-100 dark:border-red-800 bg-red-50 dark:bg-red-500/10 px-4 py-3 text-[14px] leading-5 text-red-600 dark:text-red-400"
                     >
                       {serverError}
                     </div>

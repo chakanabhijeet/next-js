@@ -29,16 +29,10 @@ import {
   X,
 } from "lucide-react";
 
-/*
- * MENU CONFIG
- *
- *  - An item with `children` becomes an expandable group (any depth).
- *  - `newTab: true` opens the link in a new browser tab (used for the TV
- *    screens, which have no sidebar and run full screen on a TV).
- *
- * To add another department later, add one more group inside Monitoring:
- *   { label: "Painting", icon: Paintbrush, children: [ ...Overview, ...TV ] }
- */
+/* ============================================================
+   MENU CONFIG
+   ============================================================ */
+
 const navigation = [
   {
     label: "Dashboard",
@@ -54,13 +48,11 @@ const navigation = [
         icon: Cog,
         children: [
           {
-            // Assembly overview = the existing assembly dashboard
             label: "Overview",
             href: "/dashboard",
             icon: Gauge,
           },
           {
-            // Existing TV page (src/app/tv)
             label: "TV",
             href: "/tv",
             icon: Tv,
@@ -78,7 +70,6 @@ const navigation = [
             icon: Gauge,
           },
           {
-            // Moulding TV page (build it at src/app/tv/moulding)
             label: "TV",
             href: "/tv2",
             icon: Tv,
@@ -88,22 +79,22 @@ const navigation = [
       },
     ],
   },
-{
-  label: "Employees",
-  icon: Users,
-  children: [
-    {
-      label: "All Employees",
-      href: "/employees",
-      icon: Users,
-    },
-    {
-      label: "Create Employee",
-      href: "/employees/create",
-      icon: UserPlus,
-    },
-  ],
-},
+  {
+    label: "Employees",
+    icon: Users,
+    children: [
+      {
+        label: "All Employees",
+        href: "/employees",
+        icon: Users,
+      },
+      {
+        label: "Create Employee",
+        href: "/employees/create",
+        icon: UserPlus,
+      },
+    ],
+  },
   {
     label: "Reports",
     href: "/reports",
@@ -119,12 +110,15 @@ const navigation = [
 const secondaryNavigation = [
   {
     label: "Settings",
-    href: "/settings",
+    href: "/dashboard/settings",
     icon: Settings,
   },
 ];
 
-// Is this route (or anything under it) the current page?
+/* ============================================================
+   ROUTE HELPERS
+   ============================================================ */
+
 function isPathActive(pathname, href) {
   if (href === "/dashboard") {
     return pathname === "/dashboard";
@@ -133,8 +127,6 @@ function isPathActive(pathname, href) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-// A leaf is active on its own route. A group is active when any child is.
-// New-tab links (TV) never count as the current page of this layout.
 function itemMatches(item, pathname) {
   if (item.children) {
     return item.children.some((child) => itemMatches(child, pathname));
@@ -145,7 +137,6 @@ function itemMatches(item, pathname) {
   return isPathActive(pathname, item.href);
 }
 
-// Keys of every group that contains the current page (so they start open).
 function getActiveGroupKeys(items, pathname, parentKey = "") {
   return items.flatMap((item) => {
     if (!item.children) return [];
@@ -157,10 +148,10 @@ function getActiveGroupKeys(items, pathname, parentKey = "") {
   });
 }
 
-/*
- * Look of each nesting level:
- *   0 = main menu rows, 1 = departments, 2 = items inside a department
- */
+/* ============================================================
+   LEVEL STYLES
+   ============================================================ */
+
 const LEVEL_STYLES = {
   0: {
     row: "h-11 gap-3 px-3 text-[13px] rounded-xl",
@@ -179,6 +170,10 @@ const LEVEL_STYLES = {
   },
 };
 
+/* ============================================================
+   SIDEBAR
+   ============================================================ */
+
 export default function AppSidebar() {
   const pathname = usePathname();
 
@@ -186,17 +181,10 @@ export default function AppSidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isLogoutLoading, setIsLogoutLoading] = useState(false);
 
-  // Keys of the groups that are expanded, e.g. "Monitoring",
-  // "Monitoring/Assembly". Starts with the groups that hold the current page.
   const [openKeys, setOpenKeys] = useState(() =>
     getActiveGroupKeys(navigation, pathname)
   );
 
-  /*
-   * Logged-in user (from the auth store).
-   * Falls back to the username inside the token if the
-   * user object has no name.
-   */
   const user = useAuthStore((state) => state.user);
   const token = useAuthStore((state) => state.token);
   const logout = useAuthStore((state) => state.logout);
@@ -213,10 +201,10 @@ export default function AppSidebar() {
 
   const initial = displayName.charAt(0).toUpperCase();
 
-  /*
-   * Keep dashboard content width synchronized
-   * with the sidebar width.
-   */
+  /* ==========================================================
+     SIDEBAR WIDTH
+     ========================================================== */
+
   useEffect(() => {
     document.documentElement.style.setProperty(
       "--sidebar-width",
@@ -228,23 +216,31 @@ export default function AppSidebar() {
     };
   }, [collapsed]);
 
-  // When you navigate to a page inside a group (link, back button, etc.),
-  // make sure the groups holding it are open.
+  /* ==========================================================
+     ACTIVE GROUPS
+     ========================================================== */
+
   useEffect(() => {
     const activeKeys = getActiveGroupKeys(navigation, pathname);
 
     if (activeKeys.length > 0) {
-      setOpenKeys((current) => [...new Set([...current, ...activeKeys])]);
+      setOpenKeys((current) => [
+        ...new Set([...current, ...activeKeys]),
+      ]);
     }
+
+    setMobileOpen(false);
   }, [pathname]);
+
+  /* ==========================================================
+     HANDLERS
+     ========================================================== */
 
   const closeMobileSidebar = () => {
     setMobileOpen(false);
   };
 
   const toggleGroup = (key) => {
-    // In the collapsed (icon-only) sidebar there is no room for sub-items,
-    // so clicking a group expands the sidebar and opens it.
     if (collapsed) {
       setCollapsed(false);
       setOpenKeys((current) => [...new Set([...current, key])]);
@@ -262,20 +258,15 @@ export default function AppSidebar() {
     if (isLogoutLoading) return;
 
     setIsLogoutLoading(true);
-
-    // Removes the saved login (store + localStorage)
     logout();
 
-    // Full reload so nothing from this session stays in memory
     window.location.href = ROUTES.LOGIN;
   };
 
-  /*
-   * Draws a list of menu items. Calls itself for the children of a group,
-   * so any depth works.
-   *   depth   = 0 main menu, 1 department, 2 item inside a department
-   *   visible = false while the parent group is closed (keeps Tab focus out)
-   */
+  /* ==========================================================
+     RENDER NAVIGATION ITEMS
+     ========================================================== */
+
   const renderItems = (items, depth = 0, parentKey = "", visible = true) =>
     items.map((item) => {
       const key = parentKey ? `${parentKey}/${item.label}` : item.label;
@@ -283,7 +274,6 @@ export default function AppSidebar() {
       const level = LEVEL_STYLES[Math.min(depth, 2)];
       const active = itemMatches(item, pathname);
 
-      // Label hides in the collapsed (icon-only) sidebar, main menu only
       const collapsedLabel =
         depth === 0
           ? collapsed
@@ -294,20 +284,29 @@ export default function AppSidebar() {
       const iconNode = level.box ? (
         <div
           className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-            active ? "bg-blue-50" : "bg-white/5 group-hover:bg-white/10"
+            active
+              ? "bg-blue-50 text-blue-600"
+              : "bg-white/5 text-white group-hover:bg-white/10"
           }`}
         >
-          <Icon className={level.icon} />
+          <Icon
+            className={`${level.icon} ${
+              active ? "text-blue-600" : "text-white"
+            }`}
+          />
         </div>
       ) : (
-        <Icon className={`${level.icon} shrink-0`} />
+        <Icon
+          className={`${level.icon} shrink-0 ${
+            active ? "text-blue-600" : "text-white"
+          }`}
+        />
       );
 
       /* ---------- Expandable group ---------- */
+
       if (item.children) {
         const open = openKeys.includes(key) && !collapsed;
-        // Main-menu group: full white when closed, so the active child
-        // can stand out when it is open.
         const solid = depth === 0 && active && !open;
 
         return (
@@ -321,7 +320,9 @@ export default function AppSidebar() {
               className={`group flex w-full items-center text-left font-medium transition-all duration-200 ${
                 level.row
               } ${
-                depth === 0 && collapsed ? "lg:justify-center lg:px-0" : ""
+                depth === 0 && collapsed
+                  ? "lg:justify-center lg:px-0"
+                  : ""
               } ${
                 solid
                   ? "bg-white text-[#123b9e] shadow-lg shadow-blue-950/20"
@@ -332,14 +333,22 @@ export default function AppSidebar() {
             >
               {solid && level.box ? (
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50">
-                  <Icon className={level.icon} />
+                  <Icon className={`${level.icon} text-blue-600`} />
                 </div>
               ) : level.box ? (
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/5 group-hover:bg-white/10">
-                  <Icon className={level.icon} />
+                  <Icon
+                    className={`${level.icon} ${
+                      active ? "text-blue-600" : "text-white"
+                    }`}
+                  />
                 </div>
               ) : (
-                <Icon className={`${level.icon} shrink-0`} />
+                <Icon
+                  className={`${level.icon} shrink-0 ${
+                    active ? "text-blue-600" : "text-white"
+                  }`}
+                />
               )}
 
               <span
@@ -361,7 +370,6 @@ export default function AppSidebar() {
               />
             </button>
 
-            {/* Sub-items: smooth open / close */}
             <div
               className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${
                 open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
@@ -384,6 +392,7 @@ export default function AppSidebar() {
       }
 
       /* ---------- Normal link ---------- */
+
       return (
         <Link
           key={key}
@@ -391,12 +400,13 @@ export default function AppSidebar() {
           onClick={closeMobileSidebar}
           tabIndex={visible ? 0 : -1}
           title={collapsed && depth === 0 ? item.label : undefined}
-          // TV screens open in a new tab (they have no sidebar)
           target={item.newTab ? "_blank" : undefined}
           rel={item.newTab ? "noopener noreferrer" : undefined}
           className={`group flex items-center font-medium transition-all duration-200 ${
             level.row
-          } ${depth === 0 && collapsed ? "lg:justify-center lg:px-0" : ""} ${
+          } ${
+            depth === 0 && collapsed ? "lg:justify-center lg:px-0" : ""
+          } ${
             active
               ? "bg-white text-[#123b9e] shadow-md shadow-blue-950/20"
               : "text-blue-50 hover:bg-white/10 hover:text-white"
@@ -422,40 +432,37 @@ export default function AppSidebar() {
       );
     });
 
+  /* ============================================================
+     JSX
+     ============================================================ */
+
   return (
     <>
-      {/* =========================================================
-          MOBILE MENU BUTTON
-      ========================================================= */}
+      {/* MOBILE MENU BUTTON */}
+
       <button
         type="button"
         onClick={() => setMobileOpen(true)}
-        className="fixed left-4 top-4 z-40 flex h-11 w-11 items-center justify-center rounded-xl border border-white/20 bg-[#123b9e] text-white shadow-lg transition hover:bg-[#0f3185] lg:hidden"
+        className="fixed left-3 top-[max(12px,env(safe-area-inset-top))] z-[60] flex h-11 w-11 items-center justify-center rounded-xl border border-blue-500/30 bg-[#123b9e] text-white shadow-lg shadow-blue-950/25 transition-all duration-200 hover:bg-[#087fca] active:scale-95 lg:hidden"
         aria-label="Open navigation"
+        aria-expanded={mobileOpen}
       >
-        <Menu className="h-5 w-5" />
+        <Menu className="h-5 w-5" strokeWidth={2.5} />
       </button>
 
-      {/* =========================================================
-          MOBILE BACKDROP
-      ========================================================= */}
+      {/* MOBILE BACKDROP */}
+
       {mobileOpen && (
         <button
           type="button"
           onClick={closeMobileSidebar}
-          className="fixed inset-0 z-40 bg-slate-950/50 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-[45] bg-slate-950/60 backdrop-blur-sm lg:hidden"
           aria-label="Close navigation"
         />
       )}
 
-      {/* =========================================================
-          SIDEBAR
-          IMPORTANT:
-          - fixed
-          - h-screen
-          - overflow-hidden
-          - NO visible sidebar scrollbar
-      ========================================================= */}
+      {/* SIDEBAR */}
+
       <aside
         className={`fixed inset-y-0 left-0 z-50 flex h-screen flex-col overflow-hidden border-r border-white/10 bg-gradient-to-b from-[#06194a] via-[#123b9e] to-[#087fca] text-white shadow-[10px_0_40px_rgba(0,0,0,0.18)] transition-all duration-300 ease-in-out ${
           collapsed ? "lg:w-[82px]" : "lg:w-[248px]"
@@ -466,13 +473,13 @@ export default function AppSidebar() {
         } lg:translate-x-0`}
       >
         {/* Background decoration */}
+
         <div className="pointer-events-none absolute -left-20 -top-20 h-56 w-56 rounded-full bg-blue-400/20 blur-3xl" />
 
         <div className="pointer-events-none absolute -bottom-24 -right-20 h-64 w-64 rounded-full bg-cyan-300/20 blur-3xl" />
 
-        {/* =======================================================
-            HEADER
-        ======================================================= */}
+        {/* HEADER */}
+
         <div className="relative flex h-[84px] shrink-0 items-center border-b border-white/10 px-4">
           <Link
             href="/dashboard"
@@ -481,8 +488,7 @@ export default function AppSidebar() {
               collapsed ? "lg:justify-center" : "gap-3"
             }`}
           >
-            {/* Logo */}
-            <div className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-[14px] bg-white p-1.5 shadow-lg">
+            <div className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-[14px] border border-white/20 bg-white p-1.5 shadow-lg">
               <img
                 src="/logo.png"
                 alt="ABHIJEET"
@@ -490,7 +496,6 @@ export default function AppSidebar() {
               />
             </div>
 
-            {/* Brand */}
             <div
               className={`min-w-0 overflow-hidden transition-all duration-300 ${
                 collapsed
@@ -512,26 +517,19 @@ export default function AppSidebar() {
             </div>
           </Link>
 
-          {/* Mobile close */}
           <button
             type="button"
             onClick={closeMobileSidebar}
-            className="ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-blue-100 transition hover:bg-white/10 lg:hidden"
+            className="ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white transition hover:bg-white/15 lg:hidden"
             aria-label="Close navigation"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        {/* =======================================================
-            NAVIGATION
+        {/* NAVIGATION */}
 
-            The scrollbar is hidden, but the menu can still scroll
-            on a short screen when groups are open, so nothing is
-            ever cut off.
-        ======================================================= */}
         <nav className="relative flex-1 overflow-y-auto px-3 py-5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {/* Main menu */}
           <p
             className={`mb-3 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-blue-100/60 ${
               collapsed ? "lg:hidden" : ""
@@ -542,10 +540,8 @@ export default function AppSidebar() {
 
           <div className="space-y-1.5">{renderItems(navigation)}</div>
 
-          {/* Divider */}
           <div className="my-6 h-px bg-white/10" />
 
-          {/* System */}
           <p
             className={`mb-3 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-blue-100/60 ${
               collapsed ? "lg:hidden" : ""
@@ -554,12 +550,13 @@ export default function AppSidebar() {
             System
           </p>
 
-          <div className="space-y-1.5">{renderItems(secondaryNavigation)}</div>
+          <div className="space-y-1.5">
+            {renderItems(secondaryNavigation)}
+          </div>
         </nav>
 
-        {/* =======================================================
-            USER / LOGOUT
-        ======================================================= */}
+        {/* USER / LOGOUT */}
+
         <div className="relative shrink-0 border-t border-white/10 p-3">
           <div className="rounded-xl bg-white/10 p-2">
             <div
@@ -591,35 +588,28 @@ export default function AppSidebar() {
               </div>
             </div>
 
+            {/* LOGOUT: HIDDEN WHEN DESKTOP SIDEBAR IS COLLAPSED */}
+
             <button
               type="button"
               onClick={handleLogout}
               disabled={isLogoutLoading}
               title={collapsed ? "Logout" : undefined}
               className={`mt-2 flex h-10 w-full items-center rounded-xl text-red-100 transition hover:bg-red-500/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-60 ${
-                collapsed
-                  ? "lg:justify-center"
-                  : "gap-3 px-3"
+                collapsed ? "lg:hidden" : "gap-3 px-3"
               }`}
             >
-              <LogOut className="h-[18px] w-[18px] shrink-0" />
+              <LogOut className="h-[18px] w-[18px] shrink-0 text-red-100" />
 
-              <span
-                className={`whitespace-nowrap text-[13px] font-medium transition-all duration-300 ${
-                  collapsed
-                    ? "lg:w-0 lg:opacity-0"
-                    : "w-auto opacity-100"
-                }`}
-              >
+              <span className="whitespace-nowrap text-[13px] font-medium">
                 {isLogoutLoading ? "Logging out..." : "Logout"}
               </span>
             </button>
           </div>
         </div>
 
-        {/* =======================================================
-            COPYRIGHT
-        ======================================================= */}
+        {/* COPYRIGHT */}
+
         <div className="relative shrink-0 border-t border-white/10 px-3 py-4">
           <div className="rounded-xl bg-white/10 px-3 py-3 text-center backdrop-blur-sm">
             <p className="text-[11px] font-semibold tracking-wide text-white/90">
@@ -638,19 +628,18 @@ export default function AppSidebar() {
           </div>
         </div>
 
-        {/* =======================================================
-            DESKTOP COLLAPSE BUTTON
-        ======================================================= */}
+        {/* DESKTOP COLLAPSE BUTTON */}
+
         <button
           type="button"
           onClick={() => setCollapsed((value) => !value)}
-          className="absolute -right-3 top-[96px] z-50 hidden h-7 w-7 items-center justify-center rounded-full border border-blue-100 bg-white text-blue-700 shadow-md transition hover:scale-105 lg:flex"
+          className="absolute -right-3 top-[96px] z-50 hidden h-7 w-7 items-center justify-center rounded-full border border-blue-200 bg-white text-slate-900 shadow-md transition hover:scale-105 hover:bg-slate-100 lg:flex"
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           {collapsed ? (
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-4 w-4 text-black" strokeWidth={2.5} />
           ) : (
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="h-4 w-4 text-black" strokeWidth={2.5} />
           )}
         </button>
       </aside>

@@ -18,15 +18,15 @@ export function SuperAdminGuard({ children }) {
 
   return (
     <div className="flex min-h-[60vh] items-center justify-center p-6">
-      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-50 text-rose-600">
+      <div className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 text-center shadow-sm">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400">
           <ShieldAlert className="h-7 w-7" />
         </div>
 
-        <h1 className="mt-4 text-xl font-bold text-slate-900">
+        <h1 className="mt-4 text-xl font-bold text-slate-900 dark:text-slate-100">
           Access restricted
         </h1>
-        <p className="mt-2 text-sm text-slate-500">
+        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
           Only a Super Admin can add new people. Please contact your
           administrator if you need access.
         </p>

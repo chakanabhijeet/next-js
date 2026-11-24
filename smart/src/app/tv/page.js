@@ -626,7 +626,7 @@ export default function TvPage() {
       });
 
   return (
-    <main className="relative flex h-screen w-screen cursor-none select-none flex-col overflow-hidden bg-slate-950 text-white">
+    <main className="relative flex h-screen w-screen cursor-none select-none flex-col overflow-hidden bg-slate-950 dark:bg-slate-950 text-white">
       <style>{`
         @keyframes tvProgress { from { width: 0%; } to { width: 100%; } }
         @keyframes tvFade {

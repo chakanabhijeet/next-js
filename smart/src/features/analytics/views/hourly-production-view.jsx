@@ -38,17 +38,17 @@ const chartConfig = {
 
 function MiniStat({ label, value, hint, valueClass = "text-slate-900" }) {
   return (
-    <div className="min-w-0 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
-      <p className="text-[11px] font-medium text-slate-500">{label}</p>
+    <div className="min-w-0 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2.5">
+      <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">{label}</p>
       <p className={`mt-0.5 text-xl font-bold ${valueClass}`}>{value}</p>
-      {hint && <p className="truncate text-[11px] text-slate-400">{hint}</p>}
+      {hint && <p className="truncate text-[11px] text-slate-400 dark:text-slate-300">{hint}</p>}
     </div>
   );
 }
 
 function MachineHourlyCard({ data, summary }) {
   const targetMet = summary.total >= summary.targetTotal;
-  const statusClass = targetMet ? "text-emerald-600" : "text-red-600";
+  const statusClass = targetMet ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400";
 
   return (
     <Card className="min-w-0 overflow-hidden">
@@ -58,10 +58,10 @@ function MachineHourlyCard({ data, summary }) {
             <Factory className="h-5 w-5 text-white" />
           </div>
           <div className="min-w-0">
-            <CardTitle className="truncate text-lg font-bold text-slate-900">
+            <CardTitle className="truncate text-lg font-bold text-slate-900 dark:text-slate-100">
               {data.machine}
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-slate-500 dark:text-slate-400">
               Shift {data.shift} · {data.shiftHours}
             </CardDescription>
           </div>
@@ -70,8 +70,8 @@ function MachineHourlyCard({ data, summary }) {
         <span
           className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold ${
             targetMet
-              ? "bg-emerald-50 text-emerald-700"
-              : "bg-red-50 text-red-700"
+              ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+              : "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400"
           }`}
         >
           <span
@@ -111,7 +111,7 @@ function MachineHourlyCard({ data, summary }) {
         </div>
 
         {/* Legend */}
-        <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500">
+        <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
           <span className="inline-flex items-center gap-1.5">
             <span
               className="h-2.5 w-2.5 rounded-sm"
@@ -182,7 +182,7 @@ function MachineHourlyCard({ data, summary }) {
                 dataKey="production"
                 position="top"
                 offset={8}
-                className="fill-slate-700 text-xs font-semibold"
+                className="fill-slate-700 dark:fill-slate-300 text-xs font-semibold"
               />
             </Bar>
           </BarChart>
