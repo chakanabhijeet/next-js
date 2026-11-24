@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -72,6 +73,37 @@ const sectionIconClass =
 const fieldClass =
   "flex min-w-0 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-3 transition-colors dark:border-slate-700 dark:bg-slate-800/60";
 
+/* ============================================================
+   ROLE FORMATTER
+   ============================================================ */
+
+const formatRole = (role) => {
+  if (!role || typeof role !== "string") return "—";
+
+  const normalizedRole = role.trim().toLowerCase();
+
+  if (!normalizedRole) return "—";
+
+  // Handle roles that are stored without spaces.
+  const roleLabels = {
+    admintenant: "Admin Tenant",
+    superadmin: "Super Admin",
+    tenantadmin: "Tenant Admin",
+    admin: "Admin",
+    user: "User",
+    employee: "Employee",
+  };
+
+  if (roleLabels[normalizedRole]) {
+    return roleLabels[normalizedRole];
+  }
+
+  // Handle values such as admin_tenant or admin-tenant.
+  return normalizedRole
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
 export default function SettingsPage() {
   const router = useRouter();
 
@@ -89,13 +121,24 @@ export default function SettingsPage() {
     tokenPayload?.username ||
     "User";
 
-  const displayEmail = user?.email || tokenPayload?.email || "—";
+  const displayEmail = user?.email || tokenPayload?.employee_id || "—";
 
-  const displayRole =
-    user?.role || user?.user_role || tokenPayload?.role || "—";
+  // Prioritize the JWT user_role field.
+  // Your token contains: "user_role": "admintenant"
+  const rawRole =
+    tokenPayload?.user_role ||
+    user?.user_role ||
+    tokenPayload?.role ||
+    user?.role ||
+    "—";
+
+  const displayRole = formatRole(rawRole);
 
   const displayEmployeeId =
-    user?.employee_id || user?.employeeId || tokenPayload?.employee_id || "—";
+    tokenPayload?.user_id ||
+    user?.employee_id ||
+    user?.employeeId ||
+    "—";
 
   const initial = displayName.charAt(0).toUpperCase();
 
@@ -173,6 +216,7 @@ export default function SettingsPage() {
     setPasswordStatus(null);
 
     try {
+      // Replace this simulated request with your password API.
       await new Promise((resolve) => setTimeout(resolve, 800));
       setPasswordStatus("success");
     } catch {
@@ -218,11 +262,7 @@ export default function SettingsPage() {
      REUSABLE CARD HEADER
      ============================================================ */
 
-  const SectionHeader = ({
-    icon: Icon,
-    title,
-    description,
-  }) => (
+  const SectionHeader = ({ icon: Icon, title, description }) => (
     <CardHeader className="flex flex-col gap-3 border-b border-slate-100 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6 dark:border-slate-800">
       <div className="flex min-w-0 items-center gap-3">
         <div className={sectionIconClass}>
@@ -251,9 +291,7 @@ export default function SettingsPage() {
       <main className="min-h-screen min-w-0 overflow-x-hidden bg-[#f5f8fc] transition-colors duration-200 dark:bg-slate-950">
         <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
 
-          {/* ====================================================
-              PAGE HEADER
-          ==================================================== */}
+          {/* PAGE HEADER */}
 
           <div className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex min-w-0 items-start gap-3">
@@ -291,9 +329,7 @@ export default function SettingsPage() {
             </Button>
           </div>
 
-          {/* ====================================================
-              ACCOUNT OVERVIEW
-          ==================================================== */}
+          {/* ACCOUNT OVERVIEW */}
 
           <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div className="flex min-w-0 items-center gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -342,9 +378,7 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* ====================================================
-              PROFILE + PASSWORD
-          ==================================================== */}
+          {/* PROFILE + PASSWORD */}
 
           <div className="grid min-w-0 gap-6 lg:grid-cols-2">
 
@@ -358,7 +392,6 @@ export default function SettingsPage() {
               />
 
               <CardContent className="space-y-6 p-5 sm:p-6">
-
                 <div className="flex flex-col items-center gap-4 rounded-2xl border border-slate-100 bg-slate-50/80 p-5 sm:flex-row sm:items-center dark:border-slate-800 dark:bg-slate-800/40">
                   <Avatar className="h-20 w-20 shrink-0 border-4 border-white bg-blue-100 shadow-md dark:border-slate-700 dark:bg-blue-900/40">
                     <AvatarFallback className="bg-blue-100 text-2xl font-bold text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
@@ -540,9 +573,7 @@ export default function SettingsPage() {
             </Card>
           </div>
 
-          {/* ====================================================
-              THEME + ABOUT SYSTEM
-          ==================================================== */}
+          {/* THEME + ABOUT SYSTEM */}
 
           <div className="mt-6 grid min-w-0 gap-6 lg:grid-cols-2">
 
@@ -708,9 +739,7 @@ export default function SettingsPage() {
             </Card>
           </div>
 
-          {/* ====================================================
-              LOGOUT SECTION
-          ==================================================== */}
+          {/* LOGOUT SECTION */}
 
           <Card className="mt-6 overflow-hidden rounded-2xl border border-red-100 bg-white shadow-sm dark:border-red-900/40 dark:bg-slate-900">
             <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
