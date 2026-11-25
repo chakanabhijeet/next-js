@@ -3,6 +3,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { useProductionViewModel } from "@/features/monitoring/view-models/use-production-view-model";
+import { useMonitoringStore } from "@/features/monitoring/store/monitoring.store";
 import {
   DEVICES,
   GROUPS,
@@ -652,7 +653,9 @@ function VariantGroup({ sections, isRefreshing, now }) {
 /* PAGE */
 
 export default function DashboardPage() {
-  const [selectedDate, setSelectedDate] = useState("");
+  // Selected date lives in the Zustand store ("" = today / live).
+  const selectedDate = useMonitoringStore((state) => state.selectedDate);
+  const setSelectedDate = useMonitoringStore((state) => state.setSelectedDate);
   const [today, setToday] = useState("");
 
   useEffect(() => {

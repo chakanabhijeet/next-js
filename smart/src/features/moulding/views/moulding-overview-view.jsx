@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useEffect, useState } from "react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 // import ThemeToggle from "@/components/common/theme-toggle";
 import { LiveAgo } from "@/components/common/live-ago";
@@ -14,6 +8,7 @@ import {
   IMM_MACHINES,
   useImmViewModel,
 } from "@/features/moulding/view-models/use-imm-view-model";
+import { useCachedImmMachines } from "@/features/moulding/view-models/use-cached-imm-machines";
 import {
   Activity,
   AlertCircle,
@@ -34,180 +29,6 @@ import {
 const MACHINE_TIMEOUT_MS = 15 * 60 * 1000;
 const CLOCK_SKEW_TOLERANCE_MS = 60 * 1000;
 const STATUS_TICK_MS = 15 * 1000;
-
-const CACHE_KEY = "imm-dashboard-cache-v1";
-const CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000; // ignore cache older than 24h
-
-// Runs before paint on the client, falls back to useEffect on the server
-const useIsoLayoutEffect =
-  typeof window !== "undefined" ? useLayoutEffect : useEffect;
-
-/* ============================================================
-   CACHE (localStorage)
-   ============================================================ */
-
-function readCache() {
-  try {
-    const raw = window.localStorage.getItem(CACHE_KEY);
-    if (!raw) return {};
-
-    const parsed = JSON.parse(raw);
-    const fresh = {};
-    const now = Date.now();
-
-    for (const [key, entry] of Object.entries(parsed || {})) {
-      if (entry?.data && now - (entry.savedAt ?? 0) <= CACHE_MAX_AGE_MS) {
-        fresh[key] = entry;
-      }
-    }
-
-    return fresh;
-  } catch {
-    return {};
-  }
-}
-
-function writeCache(cache) {
-  try {
-    window.localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
-  } catch {
-    // storage full or blocked - cache is optional, ignore
-  }
-}
-
-/* ============================================================
-   PLACEHOLDER (DUMMY) DATA
-   Shown only on the very first visit, before any cache or live
-   data exists. Deterministic (no Math.random) so server and
-   client render the same thing.
-   Production counts are always between 60 and 100.
-   ============================================================ */
-
-function hashKey(key) {
-  let hash = 0;
-  for (const ch of String(key)) {
-    hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
-  }
-  return hash;
-}
-
-function makePlaceholder(key) {
-  const h = hashKey(key);
-
-  const data = {
-    productionCount: 60 + (h % 41), // 60 - 100
-    dayProduction: 60 + ((h >>> 4) % 41), // 60 - 100
-    cycleTimeSec: 25 + ((h >>> 8) % 100) / 10, // 25.0 - 34.9
-    moldNo: "—",
-    shiftName: "",
-    productionTime: null,
-  };
-
-  // NOTE: dummy shots are still generated here, but they are not visible
-  // right now because the "Last 10 Shots" section is commented out below.
-  const shots = Array.from({ length: 10 }).map((_, i) => ({
-    id: `placeholder-${key}-${i}`,
-    cycle_time_sec: 25 + ((h + i * 7) % 100) / 10,
-    production_time: null,
-  }));
-
-  const times = shots.map((s) => s.cycle_time_sec);
-
-  const logStats = {
-    shots,
-    minCycleTimeSec: Math.min(...times),
-    maxCycleTimeSec: Math.max(...times),
-    avgCycleTimeSec: times.reduce((a, b) => a + b, 0) / times.length,
-  };
-
-  return { data, logStats };
-}
-
-/* ============================================================
-   HOOK: live data -> cached data -> placeholder data
-   Priority for each machine:
-   1. live data from the API
-   2. last saved data from localStorage
-   3. dummy placeholder (only if there is no error)
-   ============================================================ */
-
-function useCachedMachines(liveMachines) {
-  const [cache, setCache] = useState({});
-  const cacheRef = useRef({});
-  const signaturesRef = useRef({});
-
-  // Load cache before the first paint (no flash on repeat visits)
-  useIsoLayoutEffect(() => {
-    const stored = readCache();
-    cacheRef.current = stored;
-    setCache(stored);
-  }, []);
-
-  // Save new live data whenever it changes
-  useEffect(() => {
-    if (!liveMachines) return;
-
-    let changed = false;
-    const next = { ...cacheRef.current };
-
-    for (const [key, machine] of Object.entries(liveMachines)) {
-      if (!machine?.data) continue;
-
-      const logStats = machine.logStats ?? next[key]?.logStats ?? null;
-      const signature = JSON.stringify([machine.data, logStats]);
-
-      if (signaturesRef.current[key] !== signature) {
-        signaturesRef.current[key] = signature;
-        next[key] = { data: machine.data, logStats, savedAt: Date.now() };
-        changed = true;
-      }
-    }
-
-    if (changed) {
-      cacheRef.current = next;
-      writeCache(next);
-    }
-  }, [liveMachines]);
-
-  return useMemo(() => {
-    const keys = new Set([
-      ...IMM_MACHINES.map((config) => config.key),
-      ...Object.keys(liveMachines || {}),
-      ...Object.keys(cache),
-    ]);
-
-    const merged = {};
-
-    for (const key of keys) {
-      const live = liveMachines?.[key];
-      const cached = cache[key];
-      const hasError = !!live?.error;
-
-      const liveData = live?.data ?? null;
-      const cachedData = !liveData ? cached?.data ?? null : null;
-
-      // Dummy values only when nothing real exists and the API has not failed
-      const usePlaceholderData = !liveData && !cachedData && !hasError;
-      const placeholder = makePlaceholder(key);
-
-      const realLogStats = live?.logStats ?? cached?.logStats ?? null;
-      const usePlaceholderLog =
-        !realLogStats && !live?.logError && !hasError;
-
-      merged[key] = {
-        ...live,
-        data: liveData ?? cachedData ?? (usePlaceholderData ? placeholder.data : null),
-        logStats:
-          realLogStats ?? (usePlaceholderLog ? placeholder.logStats : null),
-        fromCache: !!cachedData,
-        isPlaceholder: usePlaceholderData,
-        logIsPlaceholder: usePlaceholderLog,
-      };
-    }
-
-    return merged;
-  }, [liveMachines, cache]);
-}
 
 /* ============================================================
    HELPERS
@@ -874,7 +695,7 @@ export default function MouldingOverviewView() {
   } = useImmViewModel();
 
   // live data -> saved data -> dummy data (in that order)
-  const machines = useCachedMachines(liveMachines);
+  const machines = useCachedImmMachines(liveMachines);
 
   const [now, setNow] = useState(() => Date.now());
 
