@@ -316,11 +316,12 @@ function StatusBadge({ status }) {
     );
   }
 
+  // First visit: dummy values are on screen, badge says we are waiting
   if (status === "placeholder") {
     return (
       <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-bold text-white/80 sm:text-[11px]">
         <RefreshCw className="h-2.5 w-2.5 animate-spin" />
-        SAMPLE DATA
+        WAITING FOR DATA
       </span>
     );
   }
@@ -394,14 +395,7 @@ function StoppedAlert({ production }) {
    SUMMARY TILES
    ============================================================ */
 
-function SummaryTile({
-  icon: Icon,
-  label,
-  value,
-  sub,
-  tone = "indigo",
-  dim = false,
-}) {
+function SummaryTile({ icon: Icon, label, value, sub, tone = "indigo" }) {
   const tones = {
     indigo:
       "bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-300",
@@ -412,11 +406,7 @@ function SummaryTile({
   };
 
   return (
-    <div
-      className={`flex min-w-0 items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 ${
-        dim ? "opacity-60" : ""
-      }`}
-    >
+    <div className="flex min-w-0 items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
       <div
         className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${tones[tone]}`}
       >
@@ -487,13 +477,17 @@ function StatTile({ icon: Icon, label, value, sub, stopped, small = false }) {
 function LastUpdateRow({ production, status }) {
   const stopped = status === "stopped" || status === "error";
 
+  // First visit (dummy values): no live time available yet, show a dash
   if (status === "placeholder") {
     return (
-      <div className="flex min-h-[52px] items-center gap-2 rounded-xl bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-800 dark:bg-blue-500/10 dark:text-white">
-        <Clock3 className="h-4 w-4" />
-        Last Update
-        <span className="ml-auto text-xs font-medium text-blue-700 dark:text-blue-300">
-          Waiting for live data…
+      <div className="flex min-h-[52px] items-center justify-between gap-3 rounded-xl bg-blue-50 px-4 py-3 dark:bg-blue-500/10">
+        <span className="flex items-center gap-2 text-sm font-semibold text-blue-800 dark:text-white">
+          <Clock3 className="h-4 w-4" />
+          Last Update
+        </span>
+
+        <span className="text-sm font-bold text-blue-900 dark:text-white">
+          —
         </span>
       </div>
     );
@@ -573,12 +567,6 @@ function CycleTimeLogStats({ stats, loading, error, placeholder }) {
         <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 sm:text-base">
           Last 10 Shots — Cycle Time Analysis
         </h3>
-
-        {placeholder && (
-          <span className="text-[11px] font-medium text-slate-400">
-            Sample values — loading live data…
-          </span>
-        )}
       </div>
 
       {loading && !stats ? (
@@ -591,7 +579,7 @@ function CycleTimeLogStats({ stats, loading, error, placeholder }) {
           Unable to load shot data: {String(error?.message || error)}
         </div>
       ) : (
-        <div className={placeholder ? "opacity-60" : ""}>
+        <div>
           {error && !placeholder && (
             <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
               Showing the last received shot data.{" "}
@@ -803,12 +791,8 @@ function ImmMachineCard({ config, machine, isRefreshing, now }) {
             </div>
           )}
 
-          {/* Key metrics grid (dimmed while showing sample values) */}
-          <div
-            className={`grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 ${
-              isPlaceholder ? "opacity-60" : ""
-            }`}
-          >
+          {/* Key metrics grid */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <StatTile
               icon={Layers}
               label="Shift Production"
@@ -848,13 +832,12 @@ function ImmMachineCard({ config, machine, isRefreshing, now }) {
           {/* Last update row */}
           <LastUpdateRow production={production} status={status} />
 
-          {(isRefreshing || status === "cached" || isPlaceholder) && (
+          {/* Small note (hidden while showing the first-visit dummy values) */}
+          {!isPlaceholder && (isRefreshing || status === "cached") && (
             <p className="text-[11px] text-slate-400">
-              {isPlaceholder
-                ? "Sample values — loading live data…"
-                : status === "cached"
-                  ? "Showing last saved data — updating…"
-                  : "Refreshing…"}
+              {status === "cached"
+                ? "Showing last saved data — updating…"
+                : "Refreshing…"}
             </p>
           )}
         </div>
@@ -949,7 +932,7 @@ export default function MouldingOverviewView() {
                 {allPlaceholder ? (
                   <>
                     <Wifi className="h-3.5 w-3.5 shrink-0 animate-pulse text-slate-400" />
-                    <span className="whitespace-nowrap">Connecting…</span>
+                    <span className="whitespace-nowrap">Waiting for data…</span>
                   </>
                 ) : (
                   <>
@@ -994,7 +977,6 @@ export default function MouldingOverviewView() {
                   : `${runningCount} / ${IMM_MACHINES.length}`
               }
               tone="emerald"
-              dim={allPlaceholder}
             />
 
             <SummaryTile
@@ -1003,7 +985,6 @@ export default function MouldingOverviewView() {
               value={formatNumber(totals.shift)}
               sub="All machines"
               tone="indigo"
-              dim={allPlaceholder}
             />
 
             <SummaryTile
@@ -1012,7 +993,6 @@ export default function MouldingOverviewView() {
               value={formatNumber(totals.day)}
               sub="All machines"
               tone="violet"
-              dim={allPlaceholder}
             />
           </div>
 
