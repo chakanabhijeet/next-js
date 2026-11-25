@@ -85,18 +85,18 @@ export const immProductionService = {
     return response.data;
   },
 
-  getLogStats: async ({ deviceId, machineId }) => {
-    const response = await apiClient.post(
-      API_ENDPOINTS.PRODUCTION.IMM_LOG,
-      {
-        device_id: deviceId,
-        machine_id: machineId,
-      },
-      {
-        headers: getAuthHeaders(),
-      }
-    );
+  // getLogStats: async ({ deviceId, machineId }) => {
+  //   const response = await apiClient.post(
+  //     API_ENDPOINTS.PRODUCTION.IMM_LOG,
+  //     {
+  //       device_id: deviceId,
+  //       machine_id: machineId,
+  //     },
+  //     {
+  //       headers: getAuthHeaders(),
+  //     }
+  //   );
 
-    return response.data;
-  },
+  //   return response.data;
+  // },
 };

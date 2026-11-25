@@ -39,6 +39,6 @@ export const API_ENDPOINTS = {
 
     // Injection moulding shot log (last shots, min / max / avg cycle time).
     // Also a different server, so the full address is used.
-    IMM_LOG: "http://192.168.7.144:8000/proddata/immlog",//last shots api 
+    // IMM_LOG: "http://192.168.7.144:8000/proddata/immlog",//last shots api 
   },
 };
