@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 // import ThemeToggle from "@/components/common/theme-toggle";
 import { LiveAgo } from "@/components/common/live-ago";
@@ -28,6 +34,180 @@ import {
 const MACHINE_TIMEOUT_MS = 15 * 60 * 1000;
 const CLOCK_SKEW_TOLERANCE_MS = 60 * 1000;
 const STATUS_TICK_MS = 15 * 1000;
+
+const CACHE_KEY = "imm-dashboard-cache-v1";
+const CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000; // ignore cache older than 24h
+
+// Runs before paint on the client, falls back to useEffect on the server
+const useIsoLayoutEffect =
+  typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
+/* ============================================================
+   CACHE (localStorage)
+   ============================================================ */
+
+function readCache() {
+  try {
+    const raw = window.localStorage.getItem(CACHE_KEY);
+    if (!raw) return {};
+
+    const parsed = JSON.parse(raw);
+    const fresh = {};
+    const now = Date.now();
+
+    for (const [key, entry] of Object.entries(parsed || {})) {
+      if (entry?.data && now - (entry.savedAt ?? 0) <= CACHE_MAX_AGE_MS) {
+        fresh[key] = entry;
+      }
+    }
+
+    return fresh;
+  } catch {
+    return {};
+  }
+}
+
+function writeCache(cache) {
+  try {
+    window.localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    // storage full or blocked - cache is optional, ignore
+  }
+}
+
+/* ============================================================
+   PLACEHOLDER (DUMMY) DATA
+   Shown only on the very first visit, before any cache or live
+   data exists. Deterministic (no Math.random) so server and
+   client render the same thing.
+   Production counts are always between 60 and 100.
+   ============================================================ */
+
+function hashKey(key) {
+  let hash = 0;
+  for (const ch of String(key)) {
+    hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  }
+  return hash;
+}
+
+function makePlaceholder(key) {
+  const h = hashKey(key);
+
+  const data = {
+    productionCount: 60 + (h % 41), // 60 - 100
+    dayProduction: 60 + ((h >>> 4) % 41), // 60 - 100
+    cycleTimeSec: 25 + ((h >>> 8) % 100) / 10, // 25.0 - 34.9
+    moldNo: "—",
+    shiftName: "",
+    productionTime: null,
+  };
+
+  // NOTE: dummy shots are still generated here, but they are not visible
+  // right now because the "Last 10 Shots" section is commented out below.
+  const shots = Array.from({ length: 10 }).map((_, i) => ({
+    id: `placeholder-${key}-${i}`,
+    cycle_time_sec: 25 + ((h + i * 7) % 100) / 10,
+    production_time: null,
+  }));
+
+  const times = shots.map((s) => s.cycle_time_sec);
+
+  const logStats = {
+    shots,
+    minCycleTimeSec: Math.min(...times),
+    maxCycleTimeSec: Math.max(...times),
+    avgCycleTimeSec: times.reduce((a, b) => a + b, 0) / times.length,
+  };
+
+  return { data, logStats };
+}
+
+/* ============================================================
+   HOOK: live data -> cached data -> placeholder data
+   Priority for each machine:
+   1. live data from the API
+   2. last saved data from localStorage
+   3. dummy placeholder (only if there is no error)
+   ============================================================ */
+
+function useCachedMachines(liveMachines) {
+  const [cache, setCache] = useState({});
+  const cacheRef = useRef({});
+  const signaturesRef = useRef({});
+
+  // Load cache before the first paint (no flash on repeat visits)
+  useIsoLayoutEffect(() => {
+    const stored = readCache();
+    cacheRef.current = stored;
+    setCache(stored);
+  }, []);
+
+  // Save new live data whenever it changes
+  useEffect(() => {
+    if (!liveMachines) return;
+
+    let changed = false;
+    const next = { ...cacheRef.current };
+
+    for (const [key, machine] of Object.entries(liveMachines)) {
+      if (!machine?.data) continue;
+
+      const logStats = machine.logStats ?? next[key]?.logStats ?? null;
+      const signature = JSON.stringify([machine.data, logStats]);
+
+      if (signaturesRef.current[key] !== signature) {
+        signaturesRef.current[key] = signature;
+        next[key] = { data: machine.data, logStats, savedAt: Date.now() };
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      cacheRef.current = next;
+      writeCache(next);
+    }
+  }, [liveMachines]);
+
+  return useMemo(() => {
+    const keys = new Set([
+      ...IMM_MACHINES.map((config) => config.key),
+      ...Object.keys(liveMachines || {}),
+      ...Object.keys(cache),
+    ]);
+
+    const merged = {};
+
+    for (const key of keys) {
+      const live = liveMachines?.[key];
+      const cached = cache[key];
+      const hasError = !!live?.error;
+
+      const liveData = live?.data ?? null;
+      const cachedData = !liveData ? cached?.data ?? null : null;
+
+      // Dummy values only when nothing real exists and the API has not failed
+      const usePlaceholderData = !liveData && !cachedData && !hasError;
+      const placeholder = makePlaceholder(key);
+
+      const realLogStats = live?.logStats ?? cached?.logStats ?? null;
+      const usePlaceholderLog =
+        !realLogStats && !live?.logError && !hasError;
+
+      merged[key] = {
+        ...live,
+        data: liveData ?? cachedData ?? (usePlaceholderData ? placeholder.data : null),
+        logStats:
+          realLogStats ?? (usePlaceholderLog ? placeholder.logStats : null),
+        fromCache: !!cachedData,
+        isPlaceholder: usePlaceholderData,
+        logIsPlaceholder: usePlaceholderLog,
+      };
+    }
+
+    return merged;
+  }, [liveMachines, cache]);
+}
 
 /* ============================================================
    HELPERS
@@ -62,6 +242,14 @@ function formatLastUpdate(production) {
 
 function getMachineStatus(machine, now) {
   const production = machine?.data;
+
+  // Dummy values while the very first load is in progress
+  if (production && machine?.isPlaceholder && !machine?.error) {
+    return "placeholder";
+  }
+
+  // Saved data shown while live data is still loading
+  if (production && machine?.fromCache && !machine?.error) return "cached";
 
   if (machine?.error || !production) {
     return machine?.error ? "error" : "loading";
@@ -128,11 +316,29 @@ function StatusBadge({ status }) {
     );
   }
 
+  if (status === "placeholder") {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-bold text-white/80 sm:text-[11px]">
+        <RefreshCw className="h-2.5 w-2.5 animate-spin" />
+        SAMPLE DATA
+      </span>
+    );
+  }
+
   if (status === "loading") {
     return (
       <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-bold text-white/70 sm:text-[11px]">
-        <span className="h-1.5 w-1.5 rounded-full bg-white/50" />
-        LOADING
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white/50" />
+        CONNECTING
+      </span>
+    );
+  }
+
+  if (status === "cached") {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-bold text-white/80 sm:text-[11px]">
+        <RefreshCw className="h-2.5 w-2.5 animate-spin" />
+        UPDATING
       </span>
     );
   }
@@ -188,7 +394,14 @@ function StoppedAlert({ production }) {
    SUMMARY TILES
    ============================================================ */
 
-function SummaryTile({ icon: Icon, label, value, sub, tone = "indigo" }) {
+function SummaryTile({
+  icon: Icon,
+  label,
+  value,
+  sub,
+  tone = "indigo",
+  dim = false,
+}) {
   const tones = {
     indigo:
       "bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-300",
@@ -199,7 +412,11 @@ function SummaryTile({ icon: Icon, label, value, sub, tone = "indigo" }) {
   };
 
   return (
-    <div className="flex min-w-0 items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+    <div
+      className={`flex min-w-0 items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 ${
+        dim ? "opacity-60" : ""
+      }`}
+    >
       <div
         className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${tones[tone]}`}
       >
@@ -270,6 +487,18 @@ function StatTile({ icon: Icon, label, value, sub, stopped, small = false }) {
 function LastUpdateRow({ production, status }) {
   const stopped = status === "stopped" || status === "error";
 
+  if (status === "placeholder") {
+    return (
+      <div className="flex min-h-[52px] items-center gap-2 rounded-xl bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-800 dark:bg-blue-500/10 dark:text-white">
+        <Clock3 className="h-4 w-4" />
+        Last Update
+        <span className="ml-auto text-xs font-medium text-blue-700 dark:text-blue-300">
+          Waiting for live data…
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div
       className={`flex min-h-[52px] flex-col gap-1 rounded-xl px-4 py-3 transition-none sm:flex-row sm:items-center sm:justify-between sm:gap-3 ${
@@ -321,9 +550,15 @@ function LastUpdateRow({ production, status }) {
 
 /* ============================================================
    LAST 10 SHOTS + CYCLE TIME SUMMARY
+
+   TEMPORARILY HIDDEN: this component is still defined below, but it is
+   NOT rendered anywhere right now (see the commented-out
+   <CycleTimeLogStats /> inside ImmMachineCard). To show it again,
+   uncomment that block in ImmMachineCard.
+   (Your linter may warn that CycleTimeLogStats is unused - that is expected.)
    ============================================================ */
 
-function CycleTimeLogStats({ stats, loading, error }) {
+function CycleTimeLogStats({ stats, loading, error, placeholder }) {
   const shots = Array.isArray(stats?.shots) ? stats.shots.slice(0, 10) : [];
 
   const summary = [
@@ -334,10 +569,16 @@ function CycleTimeLogStats({ stats, loading, error }) {
 
   return (
     <div className="border-t border-slate-100 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/60 sm:p-5">
-      <div className="mb-4">
+      <div className="mb-4 flex items-center justify-between gap-2">
         <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 sm:text-base">
           Last 10 Shots — Cycle Time Analysis
         </h3>
+
+        {placeholder && (
+          <span className="text-[11px] font-medium text-slate-400">
+            Sample values — loading live data…
+          </span>
+        )}
       </div>
 
       {loading && !stats ? (
@@ -350,8 +591,8 @@ function CycleTimeLogStats({ stats, loading, error }) {
           Unable to load shot data: {String(error?.message || error)}
         </div>
       ) : (
-        <>
-          {error && (
+        <div className={placeholder ? "opacity-60" : ""}>
+          {error && !placeholder && (
             <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
               Showing the last received shot data.{" "}
               {String(error?.message || error)}
@@ -452,7 +693,7 @@ function CycleTimeLogStats({ stats, loading, error }) {
               })}
             </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   );
@@ -467,6 +708,7 @@ function ImmMachineCard({ config, machine, isRefreshing, now }) {
   const error = machine?.error ?? null;
   const status = getMachineStatus(machine, now);
   const stopped = status === "stopped" || status === "error";
+  const isPlaceholder = status === "placeholder";
 
   return (
     <section
@@ -523,7 +765,7 @@ function ImmMachineCard({ config, machine, isRefreshing, now }) {
           {status === "loading" ? (
             <div className="flex min-h-24 items-center justify-center gap-2 text-sm text-slate-400 dark:text-slate-500">
               <RefreshCw className="h-4 w-4 animate-spin" />
-              Loading...
+              Connecting...
             </div>
           ) : (
             <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
@@ -555,13 +797,18 @@ function ImmMachineCard({ config, machine, isRefreshing, now }) {
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
 
               <p className="min-w-0 break-words text-xs">
-                Showing the last received data. {String(error)}
+                Showing the last received data.{" "}
+                {String(error?.message || error)}
               </p>
             </div>
           )}
 
-          {/* Key metrics grid */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {/* Key metrics grid (dimmed while showing sample values) */}
+          <div
+            className={`grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 ${
+              isPlaceholder ? "opacity-60" : ""
+            }`}
+          >
             <StatTile
               icon={Layers}
               label="Shift Production"
@@ -601,18 +848,33 @@ function ImmMachineCard({ config, machine, isRefreshing, now }) {
           {/* Last update row */}
           <LastUpdateRow production={production} status={status} />
 
-          {isRefreshing && (
-            <p className="text-[11px] text-slate-400">Refreshing…</p>
+          {(isRefreshing || status === "cached" || isPlaceholder) && (
+            <p className="text-[11px] text-slate-400">
+              {isPlaceholder
+                ? "Sample values — loading live data…"
+                : status === "cached"
+                  ? "Showing last saved data — updating…"
+                  : "Refreshing…"}
+            </p>
           )}
         </div>
       )}
 
-      {/* Last 10 shots + cycle time analysis */}
+      {/* ==========================================================
+          TEMPORARILY HIDDEN: "Last 10 Shots — Cycle Time Analysis"
+          This section is commented out on purpose (not needed for now).
+          The CycleTimeLogStats component above is still in this file.
+          To show it again: delete the comment markers around the
+          <CycleTimeLogStats ... /> block below.
+          ========================================================== */}
+      {/*
       <CycleTimeLogStats
         stats={machine?.logStats}
         loading={machine?.logLoading}
         error={machine?.logError}
+        placeholder={!!machine?.logIsPlaceholder}
       />
+      */}
     </section>
   );
 }
@@ -622,7 +884,14 @@ function ImmMachineCard({ config, machine, isRefreshing, now }) {
    ============================================================ */
 
 export default function MouldingOverviewView() {
-  const { machines, isRefreshing, refresh } = useImmViewModel();
+  const {
+    machines: liveMachines,
+    isRefreshing,
+    refresh,
+  } = useImmViewModel();
+
+  // live data -> saved data -> dummy data (in that order)
+  const machines = useCachedMachines(liveMachines);
 
   const [now, setNow] = useState(() => Date.now());
 
@@ -631,9 +900,14 @@ export default function MouldingOverviewView() {
     return () => clearInterval(id);
   }, []);
 
-  const runningCount = IMM_MACHINES.filter(
-    (config) => getMachineStatus(machines?.[config.key], now) === "running"
-  ).length;
+  const statuses = IMM_MACHINES.map((config) =>
+    getMachineStatus(machines?.[config.key], now)
+  );
+
+  const runningCount = statuses.filter((s) => s === "running").length;
+
+  // True only while every machine is still showing dummy values
+  const allPlaceholder = statuses.every((s) => s === "placeholder");
 
   const totals = IMM_MACHINES.reduce(
     (sum, config) => {
@@ -672,15 +946,24 @@ export default function MouldingOverviewView() {
             {/* Controls stay in one row; theme toggle is always last */}
             <div className="flex shrink-0 flex-nowrap items-center justify-end gap-1.5 sm:gap-2.5">
               <div className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 px-2 py-2 text-[10px] font-semibold text-slate-700 dark:border-slate-700 dark:text-white sm:gap-1.5 sm:px-3 sm:text-xs">
-                {runningCount > 0 ? (
-                  <Wifi className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                {allPlaceholder ? (
+                  <>
+                    <Wifi className="h-3.5 w-3.5 shrink-0 animate-pulse text-slate-400" />
+                    <span className="whitespace-nowrap">Connecting…</span>
+                  </>
                 ) : (
-                  <WifiOff className="h-3.5 w-3.5 shrink-0 text-rose-500" />
-                )}
+                  <>
+                    {runningCount > 0 ? (
+                      <Wifi className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                    ) : (
+                      <WifiOff className="h-3.5 w-3.5 shrink-0 text-rose-500" />
+                    )}
 
-                <span className="whitespace-nowrap">
-                  {runningCount}/{IMM_MACHINES.length} Running
-                </span>
+                    <span className="whitespace-nowrap">
+                      {runningCount}/{IMM_MACHINES.length} Running
+                    </span>
+                  </>
+                )}
               </div>
 
               <button
@@ -705,8 +988,13 @@ export default function MouldingOverviewView() {
             <SummaryTile
               icon={Activity}
               label="Machines Running"
-              value={`${runningCount} / ${IMM_MACHINES.length}`}
+              value={
+                allPlaceholder
+                  ? `— / ${IMM_MACHINES.length}`
+                  : `${runningCount} / ${IMM_MACHINES.length}`
+              }
               tone="emerald"
+              dim={allPlaceholder}
             />
 
             <SummaryTile
@@ -715,6 +1003,7 @@ export default function MouldingOverviewView() {
               value={formatNumber(totals.shift)}
               sub="All machines"
               tone="indigo"
+              dim={allPlaceholder}
             />
 
             <SummaryTile
@@ -723,6 +1012,7 @@ export default function MouldingOverviewView() {
               value={formatNumber(totals.day)}
               sub="All machines"
               tone="violet"
+              dim={allPlaceholder}
             />
           </div>
 
