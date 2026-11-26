@@ -15,7 +15,13 @@ export const IMM_MACHINES = [
     key: "1200-milacron-04",
     machineId: "1200 Milacron",
     deviceId: "06@xoom",
-    title: "1200 Milacron",
+    title: "1200 Milacron Old",
+  },
+   {
+    key: "1200-milacron-07",
+    machineId: "1200 Milacron-2",
+    deviceId: "07@xoom",
+    title: "1200 Milacron New ",
   },
  
 ];
