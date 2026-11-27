@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="public/logo.png" alt="ABHIJEET" width="120" />
+<img src="smart/public/logo.png" alt="ABHIJEET" width="120" />
 
 # 🏭 Smart Monitoring System
 
