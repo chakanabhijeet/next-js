@@ -1,3 +1,4 @@
+
 "use client";
 
 /*
@@ -489,7 +490,7 @@ export default function AlertsView() {
             <SummaryTile
               icon={AlertTriangle}
               label="Stopped"
-              value={section.stopped}
+              value={section.stopped - section.critical}
               sub={`More than ${STOPPED_MINUTES} minutes`}
               tone="amber"
             />
