@@ -517,5 +517,6 @@ export default function AlertsView() {
         </div>
       </main>
     </DashboardLayout>
+    
   );
 }
