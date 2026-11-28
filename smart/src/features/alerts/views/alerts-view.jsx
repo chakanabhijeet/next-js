@@ -492,7 +492,6 @@ export default function AlertsView() {
               value={section.stopped}
               sub={`More than ${STOPPED_MINUTES} minutes`}
               tone="amber"
-              
             />
 
             <SummaryTile
